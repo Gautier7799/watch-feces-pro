@@ -11,10 +11,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -36,6 +36,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -43,16 +44,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.components.PixelWatchHardwareFrame
-import com.example.components.WatchFaceChronograph
-import com.example.components.WatchFaceEverydayAnalog
 import com.example.components.WatchFaceImageDial
-import com.example.components.WatchFaceKineticSphere
 import com.example.components.WatchFaceMinimalDigital
 import com.example.model.WatchColorTheme
 import com.example.model.WatchComplicationData
 import com.example.model.WatchFaceType
-import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -63,7 +59,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme(darkTheme = true) {
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    background = Color(0xFF101412),
+                    surface = Color(0xFF1A221D),
+                    primary = Color(0xFF00E676)
+                )
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color(0xFF101412)
@@ -78,8 +80,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchFaceConstructorScreen() {
-    var selectedFaceType by remember { mutableStateOf(WatchFaceType.EVERYDAY_ANALOG) }
-    var isAnalog by remember { mutableStateOf(true) }
+    var selectedFaceType by remember { mutableStateOf(WatchFaceType.CUSTOM_PHOTO) }
     var isAodMode by remember { mutableStateOf(false) }
     var selectedTheme by remember { mutableStateOf(WatchColorTheme.CORAL_PEACH) }
     var customImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -94,21 +95,16 @@ fun WatchFaceConstructorScreen() {
         if (uri != null) {
             customImageUri = uri
             selectedFaceType = WatchFaceType.CUSTOM_PHOTO
-            isAnalog = true
         }
     }
 
     var hourAngle by remember { mutableStateOf(0f) }
     var minuteAngle by remember { mutableStateOf(0f) }
     var secondAngle by remember { mutableStateOf(0f) }
-    var chronoSecondAngle by remember { mutableStateOf(0f) }
-    var chronoMinuteAngle by remember { mutableStateOf(0f) }
-    var chronoHourAngle by remember { mutableStateOf(0f) }
-    var formattedDigitalTime by remember { mutableStateOf("12:15:33 AM") }
-    var formattedDate by remember { mutableStateOf("08-24") }
     var formattedHours by remember { mutableStateOf("12") }
     var formattedMinutes by remember { mutableStateOf("15") }
     var formattedSeconds by remember { mutableStateOf("33") }
+    var formattedDate by remember { mutableStateOf("08-24") }
 
     val complications = remember {
         WatchComplicationData(
@@ -123,7 +119,6 @@ fun WatchFaceConstructorScreen() {
     }
 
     LaunchedEffect(Unit) {
-        val timeFormat = SimpleDateFormat("hh:mm:ss a", Locale.US)
         val dateFormat = SimpleDateFormat("MM-dd", Locale.US)
         val hourFormat = SimpleDateFormat("hh", Locale.US)
         val minFormat = SimpleDateFormat("mm", Locale.US)
@@ -141,11 +136,6 @@ fun WatchFaceConstructorScreen() {
             minuteAngle = (minute + second / 60f) * 6f
             hourAngle = (hour + minute / 60f) * 30f
 
-            chronoSecondAngle = (secondAngle * 1.5f) % 360f
-            chronoMinuteAngle = (minuteAngle * 2f) % 360f
-            chronoHourAngle = (hourAngle * 0.5f) % 360f
-
-            formattedDigitalTime = timeFormat.format(now).uppercase()
             formattedDate = dateFormat.format(now)
             formattedHours = hourFormat.format(now)
             formattedMinutes = minFormat.format(now)
@@ -163,7 +153,7 @@ fun WatchFaceConstructorScreen() {
                 title = {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Text(
-                            text = "Constructeur",
+                            text = "Pixel Watch Pro",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp,
                             color = Color.White
@@ -230,24 +220,16 @@ fun WatchFaceConstructorScreen() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     StyleToggleButton(
-                        text = "Numérique",
-                        isSelected = !isAnalog,
+                        text = "رقمي Pixel",
+                        isSelected = selectedFaceType == WatchFaceType.MINIMAL_DIGITAL,
                         selectedColor = selectedTheme.accent,
-                        onClick = {
-                            isAnalog = false
-                            selectedFaceType = WatchFaceType.MINIMAL_DIGITAL
-                        }
+                        onClick = { selectedFaceType = WatchFaceType.MINIMAL_DIGITAL }
                     )
                     StyleToggleButton(
-                        text = "Analogique",
-                        isSelected = isAnalog,
+                        text = "صورة وعقارب",
+                        isSelected = selectedFaceType == WatchFaceType.CUSTOM_PHOTO,
                         selectedColor = selectedTheme.accent,
-                        onClick = {
-                            isAnalog = true
-                            if (selectedFaceType == WatchFaceType.MINIMAL_DIGITAL) {
-                                selectedFaceType = WatchFaceType.EVERYDAY_ANALOG
-                            }
-                        }
+                        onClick = { selectedFaceType = WatchFaceType.CUSTOM_PHOTO }
                     )
                 }
 
@@ -259,106 +241,66 @@ fun WatchFaceConstructorScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
+            // إطار ساعة Pixel Watch المدمج
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(290.dp),
                 contentAlignment = Alignment.Center
             ) {
-                PixelWatchHardwareFrame(
-                    showBezel = showHardwareBezel,
-                    modifier = Modifier.size(280.dp)
+                Box(
+                    modifier = Modifier
+                        .size(280.dp)
+                        .clip(CircleShape),
+                    contentAlignment = Alignment.Center
                 ) {
-                    when (selectedFaceType) {
-                        WatchFaceType.KINETIC_SPHERE -> {
-                            WatchFaceKineticSphere(
-                                hourAngle = hourAngle,
-                                minuteAngle = minuteAngle,
-                                secondAngle = secondAngle,
-                                theme = selectedTheme,
-                                complications = complications,
-                                isAod = isAodMode,
-                                modifier = Modifier.fillMaxSize()
+                    if (showHardwareBezel) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val r = size.width / 2f
+                            val center = Offset(r, r)
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(Color(0xFF2C3530), Color(0xFF0D120F), Color.Black),
+                                    center = center,
+                                    radius = r
+                                ),
+                                radius = r
                             )
                         }
-                        WatchFaceType.EVERYDAY_ANALOG -> {
-                            WatchFaceEverydayAnalog(
-                                hourAngle = hourAngle,
-                                minuteAngle = minuteAngle,
-                                secondAngle = secondAngle,
-                                theme = selectedTheme,
-                                complications = complications,
-                                formattedDigitalTime = formattedDigitalTime,
-                                formattedDate = formattedDate,
-                                isAod = isAodMode,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        WatchFaceType.CLASSIC_CHRONOGRAPH -> {
-                            WatchFaceChronograph(
-                                hourAngle = hourAngle,
-                                minuteAngle = minuteAngle,
-                                secondAngle = secondAngle,
-                                chronoSecondAngle = chronoSecondAngle,
-                                chronoMinuteAngle = chronoMinuteAngle,
-                                chronoHourAngle = chronoHourAngle,
-                                isStopwatchRunning = true,
-                                theme = selectedTheme,
-                                complications = complications,
-                                isAod = isAodMode,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        WatchFaceType.DIVER_SPORT -> {
-                            WatchFaceImageDial(
-                                hourAngle = hourAngle,
-                                minuteAngle = minuteAngle,
-                                secondAngle = secondAngle,
-                                imageResId = R.drawable.img_dial_diver,
-                                theme = selectedTheme,
-                                complications = complications,
-                                isAod = isAodMode,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        WatchFaceType.GALAXY_NEBULA -> {
-                            WatchFaceImageDial(
-                                hourAngle = hourAngle,
-                                minuteAngle = minuteAngle,
-                                secondAngle = secondAngle,
-                                imageResId = R.drawable.img_dial_galaxy,
-                                theme = selectedTheme,
-                                complications = complications,
-                                isAod = isAodMode,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        WatchFaceType.CUSTOM_PHOTO -> {
-                            WatchFaceImageDial(
-                                hourAngle = hourAngle,
-                                minuteAngle = minuteAngle,
-                                secondAngle = secondAngle,
-                                imageUri = customImageUri,
-                                imageResId = if (customImageUri == null) R.drawable.img_dial_diver else null,
-                                theme = selectedTheme,
-                                complications = complications,
-                                isAod = isAodMode,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        WatchFaceType.MINIMAL_DIGITAL -> {
-                            WatchFaceMinimalDigital(
-                                formattedHours = formattedHours,
-                                formattedMinutes = formattedMinutes,
-                                formattedSeconds = formattedSeconds,
-                                formattedDate = formattedDate,
-                                theme = selectedTheme,
-                                complications = complications,
-                                isAod = isAodMode,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(if (showHardwareBezel) 0.88f else 1f)
+                            .clip(CircleShape)
+                    ) {
+                        when (selectedFaceType) {
+                            WatchFaceType.MINIMAL_DIGITAL -> {
+                                WatchFaceMinimalDigital(
+                                    formattedHours = formattedHours,
+                                    formattedMinutes = formattedMinutes,
+                                    formattedSeconds = formattedSeconds,
+                                    formattedDate = formattedDate,
+                                    theme = selectedTheme,
+                                    complications = complications,
+                                    isAod = isAodMode,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            else -> {
+                                WatchFaceImageDial(
+                                    hourAngle = hourAngle,
+                                    minuteAngle = minuteAngle,
+                                    secondAngle = secondAngle,
+                                    imageUri = customImageUri,
+                                    theme = selectedTheme,
+                                    complications = complications,
+                                    isAod = isAodMode,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
                 }
@@ -378,7 +320,7 @@ fun WatchFaceConstructorScreen() {
                         .padding(4.dp)
                 ) {
                     StateToggleButton(
-                        text = "Actif",
+                        text = "نشط (Active)",
                         icon = Icons.Default.Visibility,
                         isSelected = !isAodMode,
                         selectedColor = selectedTheme.accent,
@@ -386,7 +328,7 @@ fun WatchFaceConstructorScreen() {
                         onClick = { isAodMode = false }
                     )
                     StateToggleButton(
-                        text = "AOD",
+                        text = "وضع السكون (AOD)",
                         icon = Icons.Default.Schedule,
                         isSelected = isAodMode,
                         selectedColor = selectedTheme.accent,
@@ -410,93 +352,7 @@ fun WatchFaceConstructorScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Modèles et Fonds de Cadran",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp)
-            )
-
-            val dialList = listOf(
-                DialOption(WatchFaceType.EVERYDAY_ANALOG, "القرص اليومي", "Everyday Analog", "08-24 / 59°"),
-                DialOption(WatchFaceType.KINETIC_SPHERE, "المجال الحركي", "Kinetic Sphere", "3D Particles"),
-                DialOption(WatchFaceType.CLASSIC_CHRONOGRAPH, "كرونوغراف", "Chronographe", "3 Sub-cadrans"),
-                DialOption(WatchFaceType.DIVER_SPORT, "غواص كربوني", "Sport Diver", "Carbon Dial"),
-                DialOption(WatchFaceType.GALAXY_NEBULA, "المجرة الكونية", "Cosmic Galaxy", "Nebula Stars"),
-                DialOption(WatchFaceType.CUSTOM_PHOTO, "صورة مخصصة", "Photo Perso", "Galérie Téléphone"),
-                DialOption(WatchFaceType.MINIMAL_DIGITAL, "رقمي بسيط", "Digital Pixel", "Grand Format")
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                dialList.forEach { dial ->
-                    val isSelected = selectedFaceType == dial.type
-                    Card(
-                        onClick = {
-                            selectedFaceType = dial.type
-                            if (dial.type == WatchFaceType.CUSTOM_PHOTO && customImageUri == null) {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            }
-                            isAnalog = dial.type != WatchFaceType.MINIMAL_DIGITAL
-                        },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) Color(0xFF263A2B) else Color(0xFF1A221D)
-                        ),
-                        border = if (isSelected) CardDefaults.outlinedCardBorder().copy(
-                            brush = Brush.horizontalGradient(listOf(selectedTheme.primary, selectedTheme.accent)),
-                            width = 2.dp
-                        ) else null,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .width(135.dp)
-                            .testTag("dial_card_${dial.type.name}")
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp)
-                        ) {
-                            Text(
-                                text = dial.titleAr,
-                                color = if (isSelected) selectedTheme.accent else Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                maxLines = 1
-                            )
-                            Text(
-                                text = dial.subtitle,
-                                color = Color(0xFF9E9E9E),
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Surface(
-                                color = if (isSelected) selectedTheme.accent.copy(alpha = 0.2f) else Color(0xFF141915),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = dial.tag,
-                                    color = if (isSelected) selectedTheme.accent else Color(0xFFB0B0B0),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             AnimatedVisibility(
                 visible = selectedFaceType == WatchFaceType.CUSTOM_PHOTO,
@@ -522,7 +378,7 @@ fun WatchFaceConstructorScreen() {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (customImageUri != null) "Changer l'image du cadran" else "Choisir une image depuis la galerie",
+                        text = if (customImageUri != null) "تغيير صورة واجهة الساعة" else "اختيار صورة من معرض هاتفك",
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -537,7 +393,7 @@ fun WatchFaceConstructorScreen() {
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "Thème de Couleurs",
+                        text = "ألوان السمات (Theme Colors)",
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
@@ -554,7 +410,7 @@ fun WatchFaceConstructorScreen() {
                             val isChosen = selectedTheme == themeOption
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
                                     .background(themeOption.primary)
                                     .border(
@@ -595,7 +451,7 @@ fun WatchFaceConstructorScreen() {
                         Icon(imageVector = Icons.Default.InstallMobile, contentDescription = "Install")
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Installer sur la montre",
+                            text = "تثبيت الواجهة على الساعة",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
                         )
@@ -620,7 +476,7 @@ fun WatchFaceConstructorScreen() {
             },
             title = {
                 Text(
-                    text = if (installSuccess) "Cadran Prêt !" else "Installation du Cadran",
+                    text = if (installSuccess) "الواجهة جاهزة بنجاح!" else "تثبيت الواجهة",
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
@@ -630,16 +486,16 @@ fun WatchFaceConstructorScreen() {
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "Modèle: ${selectedFaceType.titleEn}", color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Text(text = "Format: Wear OS WFF 5.1 (hasCode=false)", color = Color.LightGray, fontSize = 13.sp)
-                    Text(text = "Thème: ${selectedTheme.titleEn}", color = selectedTheme.accent, fontSize = 13.sp)
+                    Text(text = "النوع: ${selectedFaceType.titleAr}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(text = "البروتوكول: Wear OS WFF 5.1", color = Color.LightGray, fontSize = 13.sp)
+                    Text(text = "السمة: ${selectedTheme.titleAr}", color = selectedTheme.accent, fontSize = 13.sp)
                     if (isInstalling) {
                         Spacer(modifier = Modifier.height(8.dp))
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = selectedTheme.accent)
-                        Text(text = "Génération des fichiers XML du cadran...", fontSize = 12.sp, color = Color.Gray)
+                        Text(text = "جاري تجميع حزمة الواجهة وإرسالها للساعة...", fontSize = 12.sp, color = Color.Gray)
                     } else if (installSuccess) {
                         Text(
-                            text = "Les fichiers du cadran et les ressources ont été générés avec succès pour la montre Pixel Watch !",
+                            text = "تم نقل وضبط الواجهة بنجاح على ساعة Pixel Watch!",
                             color = Color(0xFF81C784),
                             fontSize = 13.sp
                         )
@@ -659,12 +515,12 @@ fun WatchFaceConstructorScreen() {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = selectedTheme.accent, contentColor = Color.Black)
                 ) {
-                    Text(if (isInstalling) "En cours..." else if (installSuccess) "Terminé" else "Lancer l'installation")
+                    Text(if (isInstalling) "جاري النقل..." else if (installSuccess) "تم الإغلاق" else "بدء التثبيت")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showInstallDialog = false }) {
-                    Text("Fermer", color = Color.Gray)
+                    Text("إلغاء", color = Color.Gray)
                 }
             },
             containerColor = Color(0xFF1E2820)
@@ -679,13 +535,6 @@ fun WatchFaceConstructorScreen() {
         }
     }
 }
-
-data class DialOption(
-    val type: WatchFaceType,
-    val titleAr: String,
-    val subtitle: String,
-    val tag: String
-)
 
 @Composable
 fun StyleToggleButton(
