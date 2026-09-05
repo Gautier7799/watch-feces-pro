@@ -24,7 +24,7 @@ jobs:
       with:
         gradle-version: '8.10'
 
-    - name: Clean & Build V15 Phone App
+    - name: Clean & Build V16 Touch Drag App
       run: |
         rm -rf app/src/main/java
         rm -rf wear/src/main/java 2>/dev/null || true
@@ -78,8 +78,8 @@ jobs:
                 applicationId = "com.aistudio.pixelwatch.constructor"
                 minSdk = 26
                 targetSdk = 35
-                versionCode = 15
-                versionName = "15.0"
+                versionCode = 16
+                versionName = "16.0"
             }
 
             buildFeatures {
@@ -191,11 +191,11 @@ jobs:
                             primary = Color(0xFF98D7A5),
                             secondary = Color(0xFF2E694E),
                             surface = Color(0xFF131814),
-                            background = Color(0xFF0D120E)
+                            background = Color(0xFF0C100D)
                         )
                     ) {
                         Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0C100D)) {
-                            MasterInteractiveApp()
+                            MasterWatchFaceApp()
                         }
                     }
                 }
@@ -203,7 +203,7 @@ jobs:
         }
 
         @Composable
-        fun MasterInteractiveApp() {
+        fun MasterWatchFaceApp() {
             val context = LocalContext.current
             val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
             val scope = rememberCoroutineScope()
@@ -212,12 +212,7 @@ jobs:
             var isDigital by remember { mutableStateOf(false) }
             var isAod by remember { mutableStateOf(false) }
 
-            var fontSizeChoice by remember { mutableStateOf(100) }
-            var fontWeightChoice by remember { mutableStateOf(FontWeight.Normal) }
-            var selectedFontFamily by remember { mutableStateOf("System") }
-
-            var showSeconds by remember { mutableStateOf(false) }
-            var showAmPm by remember { mutableStateOf(false) }
+            var displayStyle by remember { mutableStateOf("Icon + Text") } // Icon + Text vs Text Only
 
             var selectedBgImageUri by remember { mutableStateOf<Uri?>(null) }
             val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -226,21 +221,22 @@ jobs:
                 selectedBgImageUri = uri
             }
 
-            val colorsList = listOf(Color.Black, Color(0xFF1E2620), Color(0xFF2B362E), Color(0xFF2E694E), Color(0xFFFF7043))
+            val colorsList = listOf(
+                Color(0xFF0C100D),
+                Color(0xFFFFFFFF),
+                Color(0xFFE2E3DE),
+                Color(0xFF2E694E),
+                Color(0xFFFF7043)
+            )
             var selectedColorIndex by remember { mutableStateOf(0) }
 
-            var dateFormatChoice by remember { mutableStateOf("5 Feb") }
-
+            var selectedFontFamily by remember { mutableStateOf("System") }
             var selectedBadgeShape by remember { mutableStateOf(0) }
-            var badgeOpacity by remember { mutableStateOf(0.85f) }
 
-            var activeWidgetsCount by remember { mutableStateOf(2) }
-            var batteryDisplayStyle by remember { mutableStateOf("Icon + %") }
-
-            // مواقع السحب والإفلات باللمس المباشر
-            var dateDragOffset by remember { mutableStateOf(Offset(0f, -95f)) }
-            var batteryDragOffset by remember { mutableStateOf(Offset(-75f, 0f)) }
-            var stepsDragOffset by remember { mutableStateOf(Offset(0f, 90f)) }
+            // مواضع العناصر القابلة للسحب باللمس الحر بجرة إصبع
+            var dateDragOffset by remember { mutableStateOf(Offset(0f, -80f)) }
+            var batteryDragOffset by remember { mutableStateOf(Offset(-75f, 5f)) }
+            var stepsDragOffset by remember { mutableStateOf(Offset(0f, 85f)) }
 
             ModalNavigationDrawer(
                 drawerState = drawerState,
@@ -256,10 +252,10 @@ jobs:
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
-                                modifier = Modifier.size(52.dp).clip(CircleShape).background(Color(0xFF0F2027)),
+                                modifier = Modifier.size(50.dp).clip(CircleShape).background(Color(0xFF0F2027)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("W", color = Color(0xFF38EF7D), fontSize = 28.sp, fontWeight = FontWeight.Black)
+                                Text("W", color = Color(0xFF38EF7D), fontSize = 26.sp, fontWeight = FontWeight.Black)
                             }
                             Spacer(modifier = Modifier.width(16.dp))
                             Text("Watch Face Manager", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -311,7 +307,7 @@ jobs:
                             }
                             Text(currentScreen, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             IconButton(onClick = {
-                                Toast.makeText(context, "Emplacements et réglages enregistrés! (تم الحفظ)", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Positions et réglages enregistrés! (تم حفظ الأماكن)", Toast.LENGTH_SHORT).show()
                             }) {
                                 Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5))
                             }
@@ -324,92 +320,106 @@ jobs:
                             modifier = Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 18.dp, vertical = 6.dp),
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            // الشريط العلوي للاختيار بين Numérique و Analogique كما في الصور بدقة
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(onClick = { photoPickerLauncher.launch("image/*") }) {
-                                    Icon(Icons.Default.FolderOpen, contentDescription = "Open", tint = Color(0xFF98D7A5))
+                                    Icon(Icons.Default.FolderOpen, contentDescription = "Open", tint = Color(0xFF98D7A5), modifier = Modifier.size(30.dp))
                                 }
 
                                 Row(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(32.dp))
-                                        .background(Color(0xFF1E2820))
+                                        .clip(RoundedCornerShape(36.dp))
+                                        .background(Color(0xFF161E18))
                                         .padding(4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
+                                    // زر Numérique الدائري المنسق
                                     Row(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(28.dp))
-                                            .background(if (isDigital) Color(0xFF2E694E) else Color.Transparent)
+                                            .clip(RoundedCornerShape(30.dp))
+                                            .background(if (isDigital) Color(0xFF98D7A5) else Color(0xFF1E2820))
                                             .clickable { isDigital = true }
-                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                            .padding(horizontal = 16.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = if (isDigital) Color.White else Color(0xFF9CA49B))
+                                        Icon(
+                                            Icons.Default.AccessTime,
+                                            contentDescription = null,
+                                            tint = if (isDigital) Color(0xFF0F381E) else Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Numérique", color = if (isDigital) Color.White else Color(0xFF9CA49B), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text(
+                                            "Numérique",
+                                            color = if (isDigital) Color(0xFF0F381E) else Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
                                     }
 
+                                    // زر Analogique الدائري المنسق
                                     Row(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(28.dp))
-                                            .background(if (!isDigital) Color(0xFF2E694E) else Color.Transparent)
+                                            .clip(RoundedCornerShape(30.dp))
+                                            .background(if (!isDigital) Color(0xFF98D7A5) else Color(0xFF1E2820))
                                             .clickable { isDigital = false }
-                                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                                            .padding(horizontal = 16.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = if (!isDigital) Color.White else Color(0xFF9CA49B))
+                                        Icon(
+                                            Icons.Default.Schedule,
+                                            contentDescription = null,
+                                            tint = if (!isDigital) Color(0xFF0F381E) else Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Analogique", color = if (!isDigital) Color.White else Color(0xFF9CA49B), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text(
+                                            "Analogique",
+                                            color = if (!isDigital) Color(0xFF0F381E) else Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
                                     }
                                 }
 
                                 IconButton(onClick = {
-                                    Toast.makeText(context, "Configurations sauvegardées!", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Sauvegardé avec succès!", Toast.LENGTH_SHORT).show()
                                 }) {
-                                    Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5))
+                                    Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5), modifier = Modifier.size(30.dp))
                                 }
                             }
 
-                            Text("🖐️ المس واسحب أي أيقونة (التاريخ / البطارية / الخطوات) لتغيير مكانها مباشرة", fontSize = 11.sp, color = Color(0xFF98D7A5), modifier = Modifier.padding(vertical = 4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // شاشة الساعة التفاعلية مع دعم السحب المباشر
+                            // قرص شاشة الساعة التفاعلية مع دعم السحب باللمس لجميع الرموز
                             Box(
                                 modifier = Modifier
                                     .size(310.dp)
                                     .clip(CircleShape)
                                     .background(colorsList[selectedColorIndex])
-                                    .border(2.dp, Color(0xFF2A362C), CircleShape),
+                                    .border(2.dp, Color(0xFF263228), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (selectedBgImageUri != null) {
                                     AsyncImage(
                                         model = selectedBgImageUri,
-                                        contentDescription = "Background",
+                                        contentDescription = "Custom Bg",
                                         modifier = Modifier.fillMaxSize().clip(CircleShape),
                                         contentScale = ContentScale.Crop
                                     )
                                 }
 
                                 if (isDigital) {
-                                    DigitalFace(
-                                        fontSize = fontSizeChoice,
-                                        fontWeight = fontWeightChoice,
+                                    DigitalFaceInteractive(
                                         fontFamily = selectedFontFamily,
-                                        showSeconds = showSeconds,
-                                        showAmPm = showAmPm,
-                                        dateFormat = dateFormatChoice,
-                                        badgeShape = selectedBadgeShape,
-                                        badgeOpacity = badgeOpacity,
-                                        activeWidgets = activeWidgetsCount,
+                                        displayStyle = displayStyle,
                                         dateOffset = dateDragOffset,
                                         onDateOffsetChange = { dateDragOffset = it },
                                         batteryOffset = batteryDragOffset,
@@ -418,13 +428,9 @@ jobs:
                                         onStepsOffsetChange = { stepsDragOffset = it }
                                     )
                                 } else {
-                                    AnalogFace(
+                                    AnalogFaceInteractive(
                                         isAod = isAod,
-                                        dateFormat = dateFormatChoice,
-                                        badgeShape = selectedBadgeShape,
-                                        badgeOpacity = badgeOpacity,
-                                        activeWidgets = activeWidgetsCount,
-                                        showSeconds = showSeconds,
+                                        displayStyle = displayStyle,
                                         dateOffset = dateDragOffset,
                                         onDateOffsetChange = { dateDragOffset = it },
                                         batteryOffset = batteryDragOffset,
@@ -435,8 +441,9 @@ jobs:
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
+                            // أزرار Actif و AOD وإعادة التعيين
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -472,20 +479,10 @@ jobs:
 
                                 IconButton(
                                     onClick = {
-                                        fontSizeChoice = 100
-                                        fontWeightChoice = FontWeight.Normal
-                                        selectedFontFamily = "System"
-                                        showSeconds = false
-                                        showAmPm = false
-                                        dateFormatChoice = "5 Feb"
-                                        selectedBgImageUri = null
-                                        selectedBadgeShape = 0
-                                        badgeOpacity = 0.85f
-                                        activeWidgetsCount = 2
-                                        dateDragOffset = Offset(0f, -95f)
-                                        batteryDragOffset = Offset(-75f, 0f)
-                                        stepsDragOffset = Offset(0f, 90f)
-                                        Toast.makeText(context, "Réinitialisation effectuée! (تمت استعادة الأماكن)", Toast.LENGTH_SHORT).show()
+                                        dateDragOffset = Offset(0f, -80f)
+                                        batteryDragOffset = Offset(-75f, 5f)
+                                        stepsDragOffset = Offset(0f, 85f)
+                                        Toast.makeText(context, "Positions remises à zéro", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF1B241D))
                                 ) {
@@ -495,150 +492,46 @@ jobs:
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // 1. حجم الخط
+                            // قسم Style d'affichage مطابق للصورة تماماً
                             CardBox {
-                                Text("Taille de police (حجم الخط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("Style d'affichage", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(10.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf(60, 80, 100, 120, 140).forEach { size ->
-                                        val isSelected = fontSizeChoice == size
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    listOf("Icon + Text", "Text Only").forEach { style ->
+                                        val isSelected = displayStyle == style
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(44.dp)
                                                 .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { fontSizeChoice = size },
+                                                .background(if (isSelected) Color(0xFF2E694E) else Color(0xFF18221A))
+                                                .clickable { displayStyle = style },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text("$size", fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF0F381E) else Color.White, fontSize = 13.sp)
+                                            Text(style, fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
                                         }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 2. نوع وسماكة الخط
-                            CardBox {
-                                Text("Police (الخط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("System", "Google Sans Flex", "Roboto").forEach { font ->
-                                        val isSelected = selectedFontFamily == font
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { selectedFontFamily = font },
-                                            label = { Text(font, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Color(0xFF98D7A5),
-                                                selectedLabelColor = Color(0xFF0F381E),
-                                                containerColor = Color(0xFF18221A),
-                                                labelColor = Color.White
-                                            )
-                                        )
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
-                                Text("Épaisseur de police (السماكة)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf(
-                                        Pair("Thin", FontWeight.Thin),
-                                        Pair("Light", FontWeight.Light),
-                                        Pair("Normal", FontWeight.Normal),
-                                        Pair("Bold", FontWeight.Bold)
-                                    ).forEach { (label, weight) ->
-                                        val isSelected = fontWeightChoice == weight
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(40.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { fontWeightChoice = weight },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (isSelected) Color(0xFF0F381E) else Color.White)
-                                        }
-                                    }
-                                }
-                            }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 3. مفاتيح الثواني و AM/PM
-                            CardBox {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Afficher les secondes (إظهار الثواني)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Switch(
-                                        checked = showSeconds,
-                                        onCheckedChange = { showSeconds = it },
-                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Afficher AM/PM (إظهار صباحاً/مساءً)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Switch(
-                                        checked = showAmPm,
-                                        onCheckedChange = { showAmPm = it },
-                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 4. تغيير صورة الخلفية
-                            CardBox {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(Color(0xFF18221A))
-                                        .clickable { photoPickerLauncher.launch("image/*") }
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFF98D7A5))
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Text(if (selectedBgImageUri != null) "Image personnalisée (محددة)" else "Image de fond / Solid Color", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    }
-                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.LightGray)
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text("Couleur (الألوان الأساسية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                // قسم Couleur مطابق للصورة تماماً
+                                Text("Couleur", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     colorsList.forEachIndexed { index, color ->
                                         val isSelected = selectedColorIndex == index
                                         Box(
                                             modifier = Modifier
-                                                .size(44.dp)
+                                                .size(46.dp)
                                                 .clip(CircleShape)
                                                 .background(color)
-                                                .clickable {
-                                                    selectedColorIndex = index
-                                                    selectedBgImageUri = null
-                                                }
-                                                .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color(0xFF98D7A5) else Color.DarkGray, CircleShape),
+                                                .border(2.dp, if (isSelected) Color(0xFF98D7A5) else Color(0xFF333E36), CircleShape)
+                                                .clickable { selectedColorIndex = index },
                                             contentAlignment = Alignment.Center
                                         ) {
                                             if (isSelected) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = if (index == 1 || index == 2) Color.Black else Color.White)
                                             }
                                         }
                                     }
@@ -647,103 +540,57 @@ jobs:
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // 5. التاريخ
+                            // قسم Police مطابق للصورة الأولى
                             CardBox {
-                                Text("Date (صيغة التاريخ)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("Police", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("-", "5", "5 Feb", "Mon 5", "Mon").forEach { format ->
-                                        val isSelected = dateFormatChoice == format
+                                    listOf("System", "Google Sans Flex", "Roboto").forEach { font ->
+                                        val isSelected = selectedFontFamily == font
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(42.dp)
-                                                .clip(RoundedCornerShape(12.dp))
+                                                .height(44.dp)
+                                                .clip(RoundedCornerShape(16.dp))
                                                 .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { dateFormatChoice = format },
+                                                .clickable { selectedFontFamily = font },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(format, fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF0F381E) else Color.White, fontSize = 12.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 6. أشكال Material You
-                            CardBox {
-                                Text("Forme du fond (أشكال مؤشرات Material You)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    listOf("Squircle", "Flower", "Clover", "Cookie", "Sunburst", "Dome", "Donut").forEachIndexed { index, _ ->
-                                        val isSelected = selectedBadgeShape == index
-                                        Box(
-                                            modifier = Modifier
-                                                .size(50.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { selectedBadgeShape = index },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            ShapeRenderer(shapeIndex = index, color = if (isSelected) Color(0xFF0F381E) else Color.White)
+                                            Text(
+                                                font,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = if (isSelected) Color(0xFF0F381E) else Color.White
+                                            )
                                         }
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Opacité du fond (الشفافية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                                    Text("${(badgeOpacity * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF98D7A5))
-                                }
-                                Slider(
-                                    value = badgeOpacity,
-                                    onValueChange = { badgeOpacity = it },
-                                    valueRange = 0f..1f,
-                                    colors = SliderDefaults.colors(thumbColor = Color(0xFF98D7A5), activeTrackColor = Color(0xFF98D7A5))
-                                )
-                            }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 7. الودجات
-                            CardBox {
-                                Text("Widgets (إدارة الودجات)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                // Forme du fond مع أشكال Material You
+                                Text("Forme du fond", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(10.dp))
-
-                                Button(
-                                    onClick = {
-                                        activeWidgetsCount = if (activeWidgetsCount >= 2) 0 else activeWidgetsCount + 1
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A2E20), contentColor = Color(0xFF98D7A5))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Ajouter un widget ($activeWidgetsCount/2)", fontWeight = FontWeight.Bold)
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text("Style d'affichage (أسلوب العرض)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("Icon + %", "Arc", "Icon +", "Text").forEach { style ->
-                                        val isSelected = batteryDisplayStyle == style
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { batteryDisplayStyle = style },
-                                            label = { Text(style, fontSize = 12.sp) },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Color(0xFF98D7A5),
-                                                selectedLabelColor = Color(0xFF0F381E),
-                                                containerColor = Color(0xFF18221A),
-                                                labelColor = Color.White
-                                            )
-                                        )
+                                    listOf("-", "Round", "Dome", "Pill", "Squircle").forEachIndexed { index, _ ->
+                                        val isSelected = selectedBadgeShape == index
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                .clickable { selectedBadgeShape = index },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (index == 0) {
+                                                Text("-", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF0F381E) else Color.White)
+                                            } else {
+                                                ShapeRenderer(shapeIndex = index - 1, color = if (isSelected) Color(0xFF0F381E) else Color.White)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -751,20 +598,21 @@ jobs:
                             Spacer(modifier = Modifier.height(100.dp))
                         }
 
+                        // زر Installer العائم كما في صورك
                         FloatingActionButton(
                             onClick = {
-                                Toast.makeText(context, "Installation lancée sur la montre...", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Installation...", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
-                            containerColor = Color(0xFF98D7A5),
-                            contentColor = Color(0xFF0F381E),
+                            containerColor = Color(0xFF2E694E),
+                            contentColor = Color.White,
                             shape = RoundedCornerShape(22.dp)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = null)
+                                Icon(Icons.Default.ExitToApp, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Installer", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
@@ -785,17 +633,11 @@ jobs:
             }
         }
 
+        // واجهة النمط الرقمي القابلة لسحب التاريخ والبطارية والخطوات باللمس الحر
         @Composable
-        fun DigitalFace(
-            fontSize: Int,
-            fontWeight: FontWeight,
+        fun DigitalFaceInteractive(
             fontFamily: String,
-            showSeconds: Boolean,
-            showAmPm: Boolean,
-            dateFormat: String,
-            badgeShape: Int,
-            badgeOpacity: Float,
-            activeWidgets: Int,
+            displayStyle: String,
             dateOffset: Offset,
             onDateOffsetChange: (Offset) -> Unit,
             batteryOffset: Offset,
@@ -804,132 +646,74 @@ jobs:
             onStepsOffsetChange: (Offset) -> Unit
         ) {
             var timeString by remember { mutableStateOf("10:08") }
-            var secString by remember { mutableStateOf("00") }
-            var amPmString by remember { mutableStateOf("AM") }
 
             LaunchedEffect(Unit) {
                 while (true) {
                     val cal = Calendar.getInstance()
                     timeString = String.format("%02d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
-                    secString = String.format("%02d", cal.get(Calendar.SECOND))
-                    amPmString = if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM"
-                    delay(500)
+                    delay(1000)
                 }
             }
 
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (dateFormat != "-") {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset(dateOffset.x.roundToInt(), dateOffset.y.roundToInt()) }
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    onDateOffsetChange(
-                                        Offset(
-                                            (dateOffset.x + dragAmount.x).coerceIn(-110f, 110f),
-                                            (dateOffset.y + dragAmount.y).coerceIn(-115f, 115f)
-                                        )
-                                    )
-                                }
-                            }
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = badgeOpacity * 0.28f))
-                            .border(1.dp, Color(0xFF98D7A5), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 4.dp)
-                    ) {
-                        Text(dateFormat, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(horizontal = 8.dp)
+                // التاريخ قابل للسحب بجرة إصبع كما أشرت بالخط الأحمر
+                DraggableItem(
+                    offset = dateOffset,
+                    onOffsetChange = onDateOffsetChange
                 ) {
-                    Text(
-                        timeString,
-                        color = Color.White,
-                        fontSize = (fontSize * 0.52f).sp,
-                        fontWeight = fontWeight,
-                        fontFamily = when (fontFamily) {
-                            "Roboto" -> FontFamily.SansSerif
-                            else -> FontFamily.Default
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (displayStyle == "Icon + Text") {
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
                         }
-                    )
-
-                    if (showSeconds || showAmPm) {
-                        Column(modifier = Modifier.padding(start = 4.dp)) {
-                            if (showSeconds) Text(secString, color = Color(0xFF98D7A5), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            if (showAmPm) Text(amPmString, color = Color.LightGray, fontSize = 11.sp)
-                        }
+                        Text("5", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                if (activeWidgets >= 2) {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset(stepsOffset.x.roundToInt(), stepsOffset.y.roundToInt()) }
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    onStepsOffsetChange(
-                                        Offset(
-                                            (stepsOffset.x + dragAmount.x).coerceIn(-110f, 110f),
-                                            (stepsOffset.y + dragAmount.y).coerceIn(-115f, 115f)
-                                        )
-                                    )
-                                }
-                            }
-                            .size(54.dp)
-                            .border(1.dp, Color(0xFF98D7A5), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ShapeRenderer(shapeIndex = badgeShape, color = Color.White.copy(alpha = badgeOpacity * 0.25f))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Text("8,532", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                // الوقت الرقمي في المنتصف
+                Text(
+                    timeString,
+                    color = Color.White,
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = when (fontFamily) {
+                        "Roboto" -> FontFamily.SansSerif
+                        else -> FontFamily.Default
+                    }
+                )
+
+                // البطارية قابلة للسحب بجرة إصبع
+                DraggableItem(
+                    offset = batteryOffset,
+                    onOffsetChange = onBatteryOffsetChange
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (displayStyle == "Icon + Text") {
+                            Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         }
+                        Text("85%", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                if (activeWidgets >= 1) {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset(batteryOffset.x.roundToInt(), batteryOffset.y.roundToInt()) }
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    onBatteryOffsetChange(
-                                        Offset(
-                                            (batteryOffset.x + dragAmount.x).coerceIn(-110f, 110f),
-                                            (batteryOffset.y + dragAmount.y).coerceIn(-115f, 115f)
-                                        )
-                                    )
-                                }
-                            }
-                            .size(58.dp)
-                            .border(1.dp, Color(0xFF98D7A5), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ShapeRenderer(shapeIndex = badgeShape, color = Color.White.copy(alpha = badgeOpacity * 0.35f))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Text("85%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                // الخطوات قابلة للسحب بجرة إصبع
+                DraggableItem(
+                    offset = stepsOffset,
+                    onOffsetChange = onStepsOffsetChange
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (displayStyle == "Icon + Text") {
+                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         }
+                        Text("8,532", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
+        // واجهة النمط العقاربي القابلة لسحب التاريخ والبطارية والخطوات باللمس الحر (مطابقة لصورك تماماً)
         @Composable
-        fun AnalogFace(
+        fun AnalogFaceInteractive(
             isAod: Boolean,
-            dateFormat: String,
-            badgeShape: Int,
-            badgeOpacity: Float,
-            activeWidgets: Int,
-            showSeconds: Boolean,
+            displayStyle: String,
             dateOffset: Offset,
             onDateOffsetChange: (Offset) -> Unit,
             batteryOffset: Offset,
@@ -957,88 +741,51 @@ jobs:
             }
 
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (dateFormat != "-") {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset(dateOffset.x.roundToInt(), dateOffset.y.roundToInt()) }
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    onDateOffsetChange(
-                                        Offset(
-                                            (dateOffset.x + dragAmount.x).coerceIn(-110f, 110f),
-                                            (dateOffset.y + dragAmount.y).coerceIn(-115f, 115f)
-                                        )
-                                    )
-                                }
-                            }
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = badgeOpacity * 0.25f))
-                            .border(1.dp, Color(0xFF98D7A5), RoundedCornerShape(10.dp))
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(dateFormat, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                if (activeWidgets >= 2) {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset(stepsOffset.x.roundToInt(), stepsOffset.y.roundToInt()) }
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    onStepsOffsetChange(
-                                        Offset(
-                                            (stepsOffset.x + dragAmount.x).coerceIn(-110f, 110f),
-                                            (stepsOffset.y + dragAmount.y).coerceIn(-115f, 115f)
-                                        )
-                                    )
-                                }
-                            }
-                            .size(56.dp)
-                            .border(1.dp, Color(0xFF98D7A5), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ShapeRenderer(shapeIndex = badgeShape, color = Color.White.copy(alpha = badgeOpacity * 0.35f))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Text("8,532", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                // التاريخ قابل للسحب بجرة إصبع (أيقونة التقويم مع الرقم 5) كما في صورك
+                DraggableItem(
+                    offset = dateOffset,
+                    onOffsetChange = onDateOffsetChange
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (displayStyle == "Icon + Text") {
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         }
+                        Text("5", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                if (activeWidgets >= 1) {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset(batteryOffset.x.roundToInt(), batteryOffset.y.roundToInt()) }
-                            .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    onBatteryOffsetChange(
-                                        Offset(
-                                            (batteryOffset.x + dragAmount.x).coerceIn(-110f, 110f),
-                                            (batteryOffset.y + dragAmount.y).coerceIn(-115f, 115f)
-                                        )
-                                    )
-                                }
-                            }
-                            .size(56.dp)
-                            .border(1.dp, Color(0xFF98D7A5), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ShapeRenderer(shapeIndex = badgeShape, color = Color.White.copy(alpha = badgeOpacity * 0.35f))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Text("85%", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                // ودجة البطارية القابلة للسحب بجرة إصبع
+                DraggableItem(
+                    offset = batteryOffset,
+                    onOffsetChange = onBatteryOffsetChange
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (displayStyle == "Icon + Text") {
+                            Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
                         }
+                        Text("85%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
+                // ودجة الخطوات القابلة للسحب بجرة إصبع
+                DraggableItem(
+                    offset = stepsOffset,
+                    onOffsetChange = onStepsOffsetChange
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (displayStyle == "Icon + Text") {
+                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                        }
+                        Text("8,532", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // رسم عقارب الساعة بدقة متناهية
                 Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
                     val center = Offset(size.width / 2f, size.height / 2f)
                     val r = size.minDimension / 2f
 
+                    // مؤشرات الساعات
                     for (i in 0 until 12) {
                         val rad = Math.toRadians((i * 30.0) - 90.0)
                         val p1 = Offset((center.x + cos(rad) * r * 0.84f).toFloat(), (center.y + sin(rad) * r * 0.84f).toFloat())
@@ -1052,26 +799,58 @@ jobs:
                         )
                     }
 
+                    // عقرب الساعات
                     val hourRad = Math.toRadians((hourAngle - 90.0))
                     val hourEnd = Offset((center.x + cos(hourRad) * r * 0.52f).toFloat(), (center.y + sin(hourRad) * r * 0.52f).toFloat())
                     drawLine(Color.White, center, hourEnd, strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
                     drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(hourRad) * r * 0.44f).toFloat(), (center.y + sin(hourRad) * r * 0.44f).toFloat()), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
 
+                    // عقرب الدقائق
                     val minRad = Math.toRadians((minuteAngle - 90.0))
                     val minEnd = Offset((center.x + cos(minRad) * r * 0.78f).toFloat(), (center.y + sin(minRad) * r * 0.78f).toFloat())
                     drawLine(Color.White, center, minEnd, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
                     drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(minRad) * r * 0.70f).toFloat(), (center.y + sin(minRad) * r * 0.70f).toFloat()), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
 
-                    if (!isAod && showSeconds) {
+                    // عقرب الثواني الوردي
+                    if (!isAod) {
                         val secRad = Math.toRadians((secondAngle - 90.0))
                         val secEnd = Offset((center.x + cos(secRad) * r * 0.88f).toFloat(), (center.y + sin(secRad) * r * 0.88f).toFloat())
                         drawLine(Color(0xFFFF80AB), center, secEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
                         drawCircle(Color(0xFFFF80AB), radius = 3.5.dp.toPx(), center = Offset((center.x + cos(secRad) * r * 0.42f).toFloat(), (center.y + sin(secRad) * r * 0.42f).toFloat()))
                     }
 
+                    // المركز
                     drawCircle(Color(0xFFFF80AB), radius = 5.dp.toPx(), center = center)
                     drawCircle(Color.White, radius = 2.5.dp.toPx(), center = center)
                 }
+            }
+        }
+
+        // مكوّن السحب باللمس الفعلي (Draggable Item)
+        @Composable
+        fun DraggableItem(
+            offset: Offset,
+            onOffsetChange: (Offset) -> Unit,
+            content: @Composable () -> Unit
+        ) {
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            val newX = (offset.x + dragAmount.x).coerceIn(-105f, 105f)
+                            val newY = (offset.y + dragAmount.y).coerceIn(-110f, 110f)
+                            onOffsetChange(Offset(newX, newY))
+                        }
+                    }
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .border(1.dp, Color(0xFF98D7A5).copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                content()
             }
         }
 
@@ -1081,44 +860,13 @@ jobs:
                 val center = Offset(size.width / 2f, size.height / 2f)
                 val r = size.minDimension / 2f
                 when (shapeIndex) {
-                    0 -> drawRoundRect(color, topLeft = Offset(r * 0.15f, r * 0.15f), size = Size(r * 1.7f, r * 1.7f), cornerRadius = CornerRadius(r * 0.45f, r * 0.45f))
+                    0 -> drawRoundRect(color, topLeft = Offset(r * 0.2f, r * 0.2f), size = Size(r * 1.6f, r * 1.6f), cornerRadius = CornerRadius(r * 0.4f, r * 0.4f))
                     1 -> {
-                        for (i in 0 until 12) {
-                            val rad = Math.toRadians(i * 30.0)
-                            drawCircle(color, radius = r * 0.38f, center = Offset((center.x + cos(rad) * r * 0.55f).toFloat(), (center.y + sin(rad) * r * 0.55f).toFloat()))
-                        }
-                        drawCircle(color, radius = r * 0.65f, center = center)
-                    }
-                    2 -> {
-                        for (i in 0 until 4) {
-                            val rad = Math.toRadians(i * 90.0)
-                            drawCircle(color, radius = r * 0.52f, center = Offset((center.x + cos(rad) * r * 0.45f).toFloat(), (center.y + sin(rad) * r * 0.45f).toFloat()))
-                        }
-                    }
-                    3 -> {
-                        for (i in 0 until 8) {
-                            val rad = Math.toRadians(i * 45.0)
-                            drawCircle(color, radius = r * 0.42f, center = Offset((center.x + cos(rad) * r * 0.50f).toFloat(), (center.y + sin(rad) * r * 0.50f).toFloat()))
-                        }
-                    }
-                    4 -> {
-                        val path = Path()
-                        for (i in 0 until 6) {
-                            val rad = Math.toRadians(i * 60.0 - 30.0)
-                            val x = (center.x + cos(rad) * r * 0.9f).toFloat()
-                            val y = (center.y + sin(rad) * r * 0.9f).toFloat()
-                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                        }
-                        path.close()
-                        drawPath(path, color)
-                    }
-                    5 -> {
                         drawArc(color, 180f, 180f, true, Offset(r * 0.2f, r * 0.1f), Size(r * 1.6f, r * 1.4f))
                         drawRect(color, topLeft = Offset(r * 0.2f, r * 0.8f), size = Size(r * 1.6f, r * 0.9f))
                     }
-                    else -> {
-                        drawCircle(color, radius = r * 0.88f, center = center)
-                    }
+                    2 -> drawRoundRect(color, topLeft = Offset(r * 0.15f, r * 0.35f), size = Size(r * 1.7f, r * 1.1f), cornerRadius = CornerRadius(r * 0.55f, r * 0.55f))
+                    else -> drawCircle(color, radius = r * 0.75f, center = center)
                 }
             }
         }
@@ -1130,5 +878,5 @@ jobs:
     - name: Upload Phone APK Only
       uses: actions/upload-artifact@v4
       with:
-        name: PhoneApp-V15
+        name: PhoneApp-V16
         path: app/build/outputs/apk/debug/*.apk
