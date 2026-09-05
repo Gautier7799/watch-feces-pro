@@ -59,7 +59,28 @@ jobs:
         }
         EOF
 
-        # ----------------- تجهيز موديول الساعة (Wear OS) -----------------
+        # ----------------- 1. ملف Manifest لتطبيق الهاتف -----------------
+        mkdir -p app/src/main
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application
+                android:label="Pixel Watch Pro"
+                android:supportsRtl="true">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true"
+                    android:theme="@android:style/Theme.Material.NoActionBar">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        # ----------------- 2. تجهيز موديول الساعة (Wear OS) -----------------
         mkdir -p wear/src/main/java/com/example/wear
         
         cat << 'EOF' > wear/build.gradle.kts
@@ -208,12 +229,10 @@ jobs:
                     .clickable { isAod = !isAod },
                 contentAlignment = Alignment.Center
             ) {
-                // رسم بوصلة الفايكنج الرونية (Vegvisir) بدقة شاشة الساعة
                 Canvas(modifier = Modifier.fillMaxSize(0.86f)) {
                     val center = Offset(size.width / 2f, size.height / 2f)
                     val r = size.minDimension / 2f
 
-                    // الدوائر الرونية المركزية
                     drawCircle(
                         color = if (isAod) Color.DarkGray else norseRed.copy(alpha = 0.5f),
                         radius = r * 0.28f,
@@ -221,7 +240,6 @@ jobs:
                         style = Stroke(width = 1.5.dp.toPx())
                     )
 
-                    // أذرع بوصلة الفايكنج الـ 8 (Vegvisir 8 Spoke Staves)
                     for (i in 0 until 8) {
                         val rad = Math.toRadians((i * 45.0) - 90.0)
                         val endX = (center.x + cos(rad) * (r * 0.88f)).toFloat()
@@ -235,7 +253,6 @@ jobs:
                             cap = StrokeCap.Round
                         )
 
-                        // تشعبات الرونات الجانبية في أطراف البوصلة
                         val midRad = rad + Math.PI / 2
                         val branchX = (center.x + cos(rad) * (r * 0.65f)).toFloat()
                         val branchY = (center.y + sin(rad) * (r * 0.65f)).toFloat()
@@ -248,7 +265,6 @@ jobs:
                         )
                     }
 
-                    // علامات الساعات المحيطية
                     for (i in 0 until 12) {
                         val markRad = Math.toRadians((i * 30.0) - 90.0)
                         val p1 = Offset(
@@ -268,7 +284,6 @@ jobs:
                         )
                     }
 
-                    // عقرب الساعات
                     val hourRad = Math.toRadians((hourAngle - 90.0))
                     val hourLen = r * 0.50f
                     drawLine(
@@ -279,7 +294,6 @@ jobs:
                         cap = StrokeCap.Round
                     )
 
-                    // عقرب الدقائق
                     val minRad = Math.toRadians((minuteAngle - 90.0))
                     val minLen = r * 0.76f
                     drawLine(
@@ -290,7 +304,6 @@ jobs:
                         cap = StrokeCap.Round
                     )
 
-                    // عقرب الثواني (يختفي في وضع السكون AOD لتوفير البطارية)
                     if (!isAod) {
                         val secRad = Math.toRadians((secondAngle - 90.0))
                         val secLen = r * 0.88f
@@ -303,12 +316,10 @@ jobs:
                         )
                     }
 
-                    // النقطة المركزية
                     drawCircle(color = Color.White, radius = 5.dp.toPx(), center = center)
                     drawCircle(color = Color.Black, radius = 2.dp.toPx(), center = center)
                 }
 
-                // مؤشرات النبض والبطارية الذكية
                 if (!isAod) {
                     Row(
                         modifier = Modifier
