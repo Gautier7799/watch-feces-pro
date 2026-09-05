@@ -24,7 +24,7 @@ jobs:
       with:
         gradle-version: '8.10'
 
-    - name: Clean Old Source and Configure Phone App
+    - name: Clean Old Source and Configure Full Phone App
       run: |
         rm -rf app/src/main/java
         rm -rf wear/src/main/java 2>/dev/null || true
@@ -78,8 +78,8 @@ jobs:
                 applicationId = "com.aistudio.pixelwatch.constructor"
                 minSdk = 26
                 targetSdk = 35
-                versionCode = 9
-                versionName = "9.0"
+                versionCode = 10
+                versionName = "10.0"
             }
 
             buildFeatures {
@@ -135,9 +135,12 @@ jobs:
         cat << 'EOF' > app/src/main/java/com/example/MainActivity.kt
         package com.example
 
+        import android.net.Uri
         import android.os.Bundle
         import androidx.activity.ComponentActivity
+        import androidx.activity.compose.rememberLauncherForActivityResult
         import androidx.activity.compose.setContent
+        import androidx.activity.result.contract.ActivityResultContracts
         import androidx.compose.foundation.Canvas
         import androidx.compose.foundation.background
         import androidx.compose.foundation.border
@@ -161,11 +164,12 @@ jobs:
         import androidx.compose.ui.graphics.Color
         import androidx.compose.ui.graphics.Path
         import androidx.compose.ui.graphics.StrokeCap
-        import androidx.compose.ui.graphics.drawscope.Stroke
+        import androidx.compose.ui.layout.ContentScale
         import androidx.compose.ui.text.font.FontFamily
         import androidx.compose.ui.text.font.FontWeight
         import androidx.compose.ui.unit.dp
         import androidx.compose.ui.unit.sp
+        import coil.compose.AsyncImage
         import kotlinx.coroutines.delay
         import kotlinx.coroutines.launch
         import java.util.Calendar
@@ -177,45 +181,71 @@ jobs:
                 super.onCreate(savedInstanceState)
                 setContent {
                     MaterialTheme(
-                        colorScheme = lightColorScheme(
-                            primary = Color(0xFF1E3A2F),
+                        colorScheme = darkColorScheme(
+                            primary = Color(0xFF98D7A5),
                             secondary = Color(0xFF2E694E),
-                            surface = Color(0xFFF9F9F4),
-                            background = Color(0xFFF9F9F4)
+                            surface = Color(0xFF131814),
+                            background = Color(0xFF0D120E)
                         )
                     ) {
-                        ExactPhoneAppScreen()
+                        Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0C100D)) {
+                            MasterPhoneWatchFaceApp()
+                        }
                     }
                 }
             }
         }
 
         @Composable
-        fun ExactPhoneAppScreen() {
+        fun MasterPhoneWatchFaceApp() {
             val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
             val scope = rememberCoroutineScope()
             var currentScreen by remember { mutableStateOf("Constructeur") }
 
-            var isDigital by remember { mutableStateOf(false) } // الافتراضي العقاربي كما بآخر صورك
+            // 1. نوع النموذج: Numérique أو Analogique
+            var isDigital by remember { mutableStateOf(false) }
             var isAod by remember { mutableStateOf(false) }
 
-            var selectedFont by remember { mutableStateOf("System") }
+            // 2. التحكم بالخطوط (Taille, Épaisseur, Police)
+            var fontSizeChoice by remember { mutableStateOf(100) }
+            var fontWeightChoice by remember { mutableStateOf(FontWeight.Normal) }
+            var selectedFontFamily by remember { mutableStateOf("System") }
 
-            // 0: Squircle, 1: Flower 12, 2: Clover 4, 3: Cookie Pill, 4: Sunburst 8, 5: Dome, 6: Donut
+            // 3. مفاتيح الثواني والـ AM/PM
+            var showSeconds by remember { mutableStateOf(false) }
+            var showAmPm by remember { mutableStateOf(false) }
+
+            // 4. أشكال Material You والخلفية
             var selectedBadgeShape by remember { mutableStateOf(0) }
             var badgeOpacity by remember { mutableStateOf(0.85f) }
+            val colorsList = listOf(Color.Black, Color(0xFF1A1C1E), Color(0xFF2B3137), Color(0xFF2E694E), Color(0xFFFF7043))
+            var selectedColorIndex by remember { mutableStateOf(0) }
+            var selectedBgImageUri by remember { mutableStateOf<Uri?>(null) }
 
-            val colorsList = listOf(Color.Black, Color(0xFF212529), Color(0xFF495057), Color(0xFF2E694E), Color(0xFFFF7043))
-            var selectedColorIndex by remember { mutableStateOf(3) }
+            // Photo picker لاختيار خلفية مخصصة
+            val photoPickerLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.GetContent()
+            ) { uri: Uri? ->
+                selectedBgImageUri = uri
+            }
 
+            // 5. صيغة التاريخ
+            var dateFormatChoice by remember { mutableStateOf("5 Feb") }
+
+            // 6. الودجات (Widgets)
+            var activeWidgetsCount by remember { mutableStateOf(2) } // بطارية وخطوات افتراضياً
             var batteryDisplayStyle by remember { mutableStateOf("Icon + %") }
-            var isBatteryExpanded by remember { mutableStateOf(true) }
 
+            // القائمة الجانبية الكاملة المطابقة للصورة رقم 3
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
-                    ModalDrawerSheet(modifier = Modifier.width(300.dp), drawerContainerColor = Color(0xFFF4F6F0)) {
-                        Spacer(modifier = Modifier.height(24.dp))
+                    ModalDrawerSheet(
+                        modifier = Modifier.width(310.dp),
+                        drawerContainerColor = Color(0xFF121914),
+                        drawerContentColor = Color.White
+                    ) {
+                        Spacer(modifier = Modifier.height(28.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -224,35 +254,41 @@ jobs:
                                 modifier = Modifier.size(52.dp).clip(CircleShape).background(Color(0xFF0F2027)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("W", color = Color(0xFF38EF7D), fontSize = 26.sp, fontWeight = FontWeight.Black)
+                                Text("W", color = Color(0xFF38EF7D), fontSize = 28.sp, fontWeight = FontWeight.Black)
                             }
                             Spacer(modifier = Modifier.width(16.dp))
-                            Text("Watch Face\nManager", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1C18))
+                            Text("Watch Face Manager", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFE0E2DC))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFF243026))
 
-                        listOf("Accueil", "Constructeur", "Vitrine", "Paramètres").forEach { route ->
+                        val menuItems = listOf(
+                            Triple("Accueil", Icons.Default.Home, "الرئيسية"),
+                            Triple("Constructeur", Icons.Default.DashboardCustomize, "المُنشئ"),
+                            Triple("Vitrine", Icons.Default.Storefront, "المعرض"),
+                            Triple("Favoris", Icons.Default.FavoriteBorder, "المفضلة"),
+                            Triple("Top", Icons.Default.EmojiEvents, "الأعلى تصنيفاً"),
+                            Triple("Nouveautés", Icons.Default.FiberNew, "الجديد"),
+                            Triple("Voter", Icons.Default.Poll, "تصويت"),
+                            Triple("Informations", Icons.Default.Info, "معلومات"),
+                            Triple("Paramètres", Icons.Default.Settings, "الإعدادات")
+                        )
+
+                        menuItems.forEach { (route, icon, _) ->
                             val selected = currentScreen == route
                             NavigationDrawerItem(
-                                label = { Text(route, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium) },
-                                icon = {
-                                    Icon(
-                                        when(route) {
-                                            "Accueil" -> Icons.Default.Home
-                                            "Constructeur" -> Icons.Default.DashboardCustomize
-                                            "Vitrine" -> Icons.Default.Storefront
-                                            else -> Icons.Default.Settings
-                                        },
-                                        contentDescription = route
-                                    )
-                                },
+                                label = { Text(route, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = Color.White) },
+                                icon = { Icon(icon, contentDescription = route, tint = if (selected) Color(0xFF98D7A5) else Color(0xFFC2C8BE)) },
                                 selected = selected,
                                 onClick = {
                                     currentScreen = route
                                     scope.launch { drawerState.close() }
                                 },
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(24.dp)
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 3.dp),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    selectedContainerColor = Color(0xFF25392B),
+                                    unselectedContainerColor = Color.Transparent
+                                )
                             )
                         }
                     }
@@ -266,38 +302,38 @@ jobs:
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color(0xFF1A1C18), modifier = Modifier.size(28.dp))
+                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White, modifier = Modifier.size(28.dp))
                             }
-                            Text(currentScreen, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1C18))
-                            IconButton(onClick = { }) {
-                                Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF1A1C18))
+                            Text(currentScreen, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            IconButton(onClick = { /* حفظ */ }) {
+                                Icon(Icons.Default.Save, contentDescription = "Save", tint = Color.White)
                             }
                         }
                     },
-                    containerColor = Color(0xFFF7F8F3)
+                    containerColor = Color(0xFF0C100D)
                 ) { innerPadding ->
                     Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 20.dp, vertical = 6.dp),
+                                .padding(horizontal = 18.dp, vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // التبديل بين Numérique و Analogique مع الأيقونات والأسلوب الدائري الأنيق
+                            // التبديل بين Numérique و Analogique مع الأيقونات كالصورة تماماً
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = { }) {
-                                    Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF2E694E))
+                                IconButton(onClick = { photoPickerLauncher.launch("image/*") }) {
+                                    Icon(Icons.Default.FolderOpen, contentDescription = "Open", tint = Color(0xFF98D7A5))
                                 }
 
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(32.dp))
-                                        .background(Color(0xFFE8ECE4))
+                                        .background(Color(0xFF1E2820))
                                         .padding(4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
@@ -309,9 +345,9 @@ jobs:
                                             .padding(horizontal = 14.dp, vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = if (isDigital) Color.White else Color(0xFF434842))
+                                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = if (isDigital) Color.White else Color(0xFF9CA49B))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Numérique", color = if (isDigital) Color.White else Color(0xFF434842), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Numérique", color = if (isDigital) Color.White else Color(0xFF9CA49B), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     }
 
                                     Row(
@@ -322,85 +358,67 @@ jobs:
                                             .padding(horizontal = 14.dp, vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = if (!isDigital) Color.White else Color(0xFF434842))
+                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = if (!isDigital) Color.White else Color(0xFF9CA49B))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Analogique", color = if (!isDigital) Color.White else Color(0xFF434842), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Analogique", color = if (!isDigital) Color.White else Color(0xFF9CA49B), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     }
                                 }
 
-                                IconButton(onClick = { }) {
-                                    Icon(Icons.Default.Save, contentDescription = null, tint = Color(0xFF2E694E))
+                                IconButton(onClick = { /* حفظ */ }) {
+                                    Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5))
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                            // معاينة شاشة الساعة الحية المتطابقة 100% مع صورك الأخيرة
+                            // معاينة شاشة الساعة الحية المتصلة بكل الخيارات
                             Box(
                                 modifier = Modifier
                                     .size(310.dp)
                                     .clip(CircleShape)
-                                    .background(Color(0xFF0F1113)),
+                                    .background(colorsList[selectedColorIndex])
+                                    .border(2.dp, Color(0xFF2A362C), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
+                                // عرض صورة الخلفية إن تم اختيارها
+                                if (selectedBgImageUri != null) {
+                                    AsyncImage(
+                                        model = selectedBgImageUri,
+                                        contentDescription = "Custom Background",
+                                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+
                                 if (isDigital) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .padding(top = 28.dp)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(Color.White.copy(alpha = badgeOpacity * 0.3f))
-                                                .padding(horizontal = 14.dp, vertical = 4.dp)
-                                        ) {
-                                            Text("5 Feb", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        }
-
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center,
-                                            modifier = Modifier.padding(horizontal = 16.dp)
-                                        ) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 8.dp)) {
-                                                Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                                Text("8,532", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                            Text(
-                                                "10:08",
-                                                color = Color.White,
-                                                fontSize = 62.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = when(selectedFont) {
-                                                    "Roboto" -> FontFamily.SansSerif
-                                                    "Google Sans Flex" -> FontFamily.Default
-                                                    else -> FontFamily.Default
-                                                }
-                                            )
-                                        }
-
-                                        Box(
-                                            modifier = Modifier.padding(bottom = 28.dp).size(62.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            MaterialYouBadgeBackground(shapeIndex = selectedBadgeShape, opacity = badgeOpacity)
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                                Text("85%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-                                    }
+                                    // العرض الرقمي (Numérique)
+                                    DigitalWatchFaceView(
+                                        fontSize = fontSizeChoice,
+                                        fontWeight = fontWeightChoice,
+                                        fontFamily = selectedFontFamily,
+                                        showSeconds = showSeconds,
+                                        showAmPm = showAmPm,
+                                        dateFormat = dateFormatChoice,
+                                        badgeShape = selectedBadgeShape,
+                                        badgeOpacity = badgeOpacity,
+                                        activeWidgets = activeWidgetsCount
+                                    )
                                 } else {
-                                    // النمط العقاربي الفاخر من لقطة شاشتك (عقارب حادة مفرغة ومؤشر الخطوات السفلي ومؤشر البطارية)
-                                    AnalogClockMiniPreview(isAod = isAod, badgeShape = selectedBadgeShape, opacity = badgeOpacity)
+                                    // العرض العقاربي (Analogique) مع تفعيل كافة الإضافات
+                                    AnalogWatchFaceView(
+                                        isAod = isAod,
+                                        dateFormat = dateFormatChoice,
+                                        badgeShape = selectedBadgeShape,
+                                        badgeOpacity = badgeOpacity,
+                                        activeWidgets = activeWidgetsCount,
+                                        showSeconds = showSeconds
+                                    )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            // زرا Actif و AOD وزر إعادة التعيين
+                            // زرا Actif و AOD وإعادة التعيين
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -408,11 +426,11 @@ jobs:
                             ) {
                                 Button(
                                     onClick = { isAod = false },
-                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    modifier = Modifier.weight(1f).height(46.dp),
                                     shape = RoundedCornerShape(24.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (!isAod) Color(0xFF1E3A2F) else Color(0xFFE4E7DF),
-                                        contentColor = if (!isAod) Color.White else Color(0xFF434842)
+                                        containerColor = if (!isAod) Color(0xFF98D7A5) else Color(0xFF1B241D),
+                                        contentColor = if (!isAod) Color(0xFF0F381E) else Color.White
                                     )
                                 ) {
                                     Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -422,11 +440,11 @@ jobs:
 
                                 Button(
                                     onClick = { isAod = true },
-                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    modifier = Modifier.weight(1f).height(46.dp),
                                     shape = RoundedCornerShape(24.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isAod) Color(0xFF1E3A2F) else Color(0xFFE4E7DF),
-                                        contentColor = if (isAod) Color.White else Color(0xFF434842)
+                                        containerColor = if (isAod) Color(0xFF98D7A5) else Color(0xFF1B241D),
+                                        contentColor = if (isAod) Color(0xFF0F381E) else Color.White
                                     )
                                 ) {
                                     Icon(Icons.Default.BrightnessAuto, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -436,197 +454,279 @@ jobs:
 
                                 IconButton(
                                     onClick = {
-                                        selectedFont = "System"
+                                        fontSizeChoice = 100
+                                        fontWeightChoice = FontWeight.Normal
+                                        selectedFontFamily = "System"
+                                        showSeconds = false
+                                        showAmPm = false
+                                        dateFormatChoice = "5 Feb"
+                                        selectedBgImageUri = null
                                         selectedBadgeShape = 0
                                         badgeOpacity = 0.85f
+                                        activeWidgetsCount = 2
                                     },
-                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFE4E7DF))
+                                    modifier = Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF1B241D))
                                 ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = Color(0xFF1A1C18))
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // بطاقة خيارات المظهر: الخطوط وأشكال Material You والشفافية والألوان
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(22.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFEAEFE7))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    // 1. قسم الخطوط (Police)
-                                    Text("Police (الخطوط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1A1C18))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        listOf("System", "Google Sans Flex", "Roboto").forEach { font ->
-                                            val isSelected = selectedFont == font
-                                            FilterChip(
-                                                selected = isSelected,
-                                                onClick = { selectedFont = font },
-                                                label = { Text(font, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = Color(0xFF1E3A2F),
-                                                    selectedLabelColor = Color.White
-                                                )
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    // 2. أشكال Material You الحقيقية لـ Forme du fond (المحددة بدقة في صورك)
-                                    Text("Forme du fond (أشكال المؤشرات Material You)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1A1C18))
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        // الأشكال الـ 7 لـ Material You
-                                        val shapes = listOf("Squircle", "Flower12", "Clover4", "Cookie", "Sunburst", "Dome", "Donut")
-                                        shapes.forEachIndexed { index, shapeName ->
-                                            val isSelected = selectedBadgeShape == index
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(52.dp)
-                                                    .clip(RoundedCornerShape(16.dp))
-                                                    .background(if (isSelected) Color(0xFF1E3A2F) else Color.White)
-                                                    .border(if (isSelected) 2.dp else 0.dp, Color(0xFF2E694E), RoundedCornerShape(16.dp))
-                                                    .clickable { selectedBadgeShape = index },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                MaterialYouIconRenderer(
-                                                    shapeIndex = index,
-                                                    color = if (isSelected) Color.White else Color(0xFF434842)
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    // 3. سلايدر الشفافية (Opacité du fond) بتصميم Material You العريض
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Opacité du fond (الشفافية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1A1C18))
-                                        Text("${(badgeOpacity * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E694E))
-                                    }
-                                    Slider(
-                                        value = badgeOpacity,
-                                        onValueChange = { badgeOpacity = it },
-                                        valueRange = 0f..1f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFF2E694E),
-                                            activeTrackColor = Color(0xFF2E694E),
-                                            inactiveTrackColor = Color(0xFFC7CDC3)
-                                        ),
-                                        modifier = Modifier.height(28.dp)
-                                    )
-
-                                    Spacer(modifier = Modifier.height(14.dp))
-
-                                    // 4. دوائر الألوان لـ Couleur de fond مع علامة الدائرة المكتملة كالصورة
-                                    Text("Couleur de fond (الألوان)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1A1C18))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        colorsList.forEachIndexed { index, color ->
-                                            val isSelected = selectedColorIndex == index
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(44.dp)
-                                                    .clip(CircleShape)
-                                                    .background(color)
-                                                    .clickable { selectedColorIndex = index }
-                                                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color(0xFF2E694E) else Color.LightGray, CircleShape),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (isSelected) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                                }
-                                            }
-                                        }
-                                    }
+                                    Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = Color.White)
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // قسم مؤشرات البطارية والخطوات (Complications)
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(22.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFEAEFE7))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color.White)
-                                            .clickable { isBatteryExpanded = !isBatteryExpanded }
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF2E694E)), contentAlignment = Alignment.Center) {
-                                                Text("1", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color(0xFF2E694E))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Battery", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        }
-
-                                        Row {
-                                            Icon(if (isBatteryExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null)
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.Red, modifier = Modifier.size(18.dp))
+                            // 1. لوحة تحكم حجم الخط (Taille de police) من الصورة 4
+                            DarkConfigCard {
+                                Text("Taille de police (حجم الخط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf(60, 80, 100, 120, 140).forEach { size ->
+                                        val isSelected = fontSizeChoice == size
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(44.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                .clickable { fontSizeChoice = size },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                "$size",
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color(0xFF0F381E) else Color.White,
+                                                fontSize = 13.sp
+                                            )
                                         }
                                     }
+                                }
+                            }
 
-                                    if (isBatteryExpanded) {
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                        Text("Style d'affichage (أسلوب العرض)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF1A1C18))
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            listOf("Icon + %", "Arc", "Icon only").forEach { style ->
-                                                val isSelected = batteryDisplayStyle == style
-                                                FilterChip(
-                                                    selected = isSelected,
-                                                    onClick = { batteryDisplayStyle = style },
-                                                    label = { Text(style, fontSize = 12.sp) },
-                                                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF2E694E), selectedLabelColor = Color.White)
-                                                )
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 2. لوحة الخط وسماكته (Police & Épaisseur) من الصورة 5
+                            DarkConfigCard {
+                                Text("Police (نوع الخط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("System", "Google Sans Flex", "Roboto").forEach { font ->
+                                        val isSelected = selectedFontFamily == font
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { selectedFontFamily = font },
+                                            label = { Text(font, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = Color(0xFF98D7A5),
+                                                selectedLabelColor = Color(0xFF0F381E),
+                                                containerColor = Color(0xFF18221A),
+                                                labelColor = Color.White
+                                            )
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text("Épaisseur de police (سماكة الخط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf(
+                                        Pair("Thin", FontWeight.Thin),
+                                        Pair("Light", FontWeight.Light),
+                                        Pair("Normal", FontWeight.Normal),
+                                        Pair("Bold", FontWeight.Bold)
+                                    ).forEach { (label, weight) ->
+                                        val isSelected = fontWeightChoice == weight
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(40.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                .clickable { fontWeightChoice = weight },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (isSelected) Color(0xFF0F381E) else Color.White)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 3. مفاتيح التبديل (Afficher les secondes & AM/PM) من الصورة 6
+                            DarkConfigCard {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Afficher les secondes (إظهار الثواني)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    Switch(
+                                        checked = showSeconds,
+                                        onCheckedChange = { showSeconds = it },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Afficher AM/PM (إظهار صباحاً/مساءً)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    Switch(
+                                        checked = showAmPm,
+                                        onCheckedChange = { showAmPm = it },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 4. تغيير صورة الخلفية أو اللون المصمت (Solid Color / Image) من الصورة 7
+                            DarkConfigCard {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color(0xFF18221A))
+                                        .clickable { photoPickerLauncher.launch("image/*") }
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFF98D7A5))
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(if (selectedBgImageUri != null) "Image personnalisée (محددة)" else "Image de fond / Solid Color", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
+                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.LightGray)
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("Couleur (الألوان الأساسية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    colorsList.forEachIndexed { index, color ->
+                                        val isSelected = selectedColorIndex == index
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(CircleShape)
+                                                .background(color)
+                                                .clickable {
+                                                    selectedColorIndex = index
+                                                    selectedBgImageUri = null
+                                                }
+                                                .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color(0xFF98D7A5) else Color.DarkGray, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                                             }
                                         }
                                     }
+                                }
+                            }
 
-                                    Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color.White)
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF2E694E)), contentAlignment = Alignment.Center) {
-                                                Text("2", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color(0xFF2E694E))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Steps", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            // 5. قسم التاريخ (Date) من الصورة 8
+                            DarkConfigCard {
+                                Text("Date (صيغة التاريخ)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("-", "5", "5 Feb", "Mon 5", "Mon").forEach { format ->
+                                        val isSelected = dateFormatChoice == format
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(42.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                .clickable { dateFormatChoice = format },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(format, fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF0F381E) else Color.White, fontSize = 12.sp)
                                         }
+                                    }
+                                }
+                            }
 
-                                        TextButton(onClick = { }) {
-                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF2E694E))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Réinitialiser", fontSize = 11.sp, color = Color(0xFF2E694E))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 6. أشكال المؤشرات Material You وسلايدر الشفافية
+                            DarkConfigCard {
+                                Text("Forme du fond (أشكال المؤشرات Material You)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    listOf("Squircle", "Flower12", "Clover4", "Cookie", "Sunburst", "Dome", "Donut").forEachIndexed { index, _ ->
+                                        val isSelected = selectedBadgeShape == index
+                                        Box(
+                                            modifier = Modifier
+                                                .size(50.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                .clickable { selectedBadgeShape = index },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            MaterialYouIcon(index, color = if (isSelected) Color(0xFF0F381E) else Color.White)
                                         }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Opacité du fond (الشفافية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                    Text("${(badgeOpacity * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF98D7A5))
+                                }
+                                Slider(
+                                    value = badgeOpacity,
+                                    onValueChange = { badgeOpacity = it },
+                                    valueRange = 0f..1f,
+                                    colors = SliderDefaults.colors(thumbColor = Color(0xFF98D7A5), activeTrackColor = Color(0xFF98D7A5))
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 7. قسم الودجات (Widgets) من الصورة 9
+                            DarkConfigCard {
+                                Text("Widgets (إدارة الودجات)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        activeWidgetsCount = if (activeWidgetsCount >= 2) 0 else activeWidgetsCount + 1
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A2E20), contentColor = Color(0xFF98D7A5))
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Ajouter un widget ($activeWidgetsCount/2)", fontWeight = FontWeight.Bold)
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text("Style d'affichage (أسلوب العرض)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("Icon + %", "Arc", "Icon +", "Text").forEach { style ->
+                                        val isSelected = batteryDisplayStyle == style
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { batteryDisplayStyle = style },
+                                            label = { Text(style, fontSize = 12.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = Color(0xFF98D7A5),
+                                                selectedLabelColor = Color(0xFF0F381E),
+                                                containerColor = Color(0xFF18221A),
+                                                labelColor = Color.White
+                                            )
+                                        )
                                     }
                                 }
                             }
@@ -638,7 +738,7 @@ jobs:
                         FloatingActionButton(
                             onClick = { },
                             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
-                            containerColor = Color(0xFFBBEAC5),
+                            containerColor = Color(0xFF98D7A5),
                             contentColor = Color(0xFF0F381E),
                             shape = RoundedCornerShape(22.dp)
                         ) {
@@ -656,40 +756,252 @@ jobs:
             }
         }
 
-        // رسم أيقونات Material You داخل القائمة الهندسية
         @Composable
-        fun MaterialYouIconRenderer(shapeIndex: Int, color: Color) {
+        fun DarkConfigCard(content: @Composable ColumnScope.() -> Unit) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF131A15))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), content = content)
+            }
+        }
+
+        @Composable
+        fun DigitalWatchFaceView(
+            fontSize: Int,
+            fontWeight: FontWeight,
+            fontFamily: String,
+            showSeconds: Boolean,
+            showAmPm: Boolean,
+            dateFormat: String,
+            badgeShape: Int,
+            badgeOpacity: Float,
+            activeWidgets: Int
+        ) {
+            var timeString by remember { mutableStateOf("10:08") }
+            var secString by remember { mutableStateOf("00") }
+            var amPmString by remember { mutableStateOf("AM") }
+
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val cal = Calendar.getInstance()
+                    timeString = String.format("%02d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+                    secString = String.format("%02d", cal.get(Calendar.SECOND))
+                    amPmString = if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM"
+                    delay(500)
+                }
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // شارة التاريخ
+                if (dateFormat != "-") {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 26.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = badgeOpacity * 0.28f))
+                            .padding(horizontal = 14.dp, vertical = 4.dp)
+                    ) {
+                        Text(dateFormat, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(26.dp))
+                }
+
+                // الوقت الرقمي المتجاوب مع الحجم والخط
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                ) {
+                    if (activeWidgets >= 2) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 8.dp)) {
+                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Text("8,532", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Text(
+                        timeString,
+                        color = Color.White,
+                        fontSize = (fontSize * 0.52f).sp,
+                        fontWeight = fontWeight,
+                        fontFamily = when(fontFamily) {
+                            "Roboto" -> FontFamily.SansSerif
+                            "Google Sans Flex" -> FontFamily.Default
+                            else -> FontFamily.Default
+                        }
+                    )
+
+                    if (showSeconds || showAmPm) {
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            if (showSeconds) Text(secString, color = Color(0xFF98D7A5), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            if (showAmPm) Text(amPmString, color = Color.LightGray, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                // ودجت البطارية السفلي
+                if (activeWidgets >= 1) {
+                    Box(
+                        modifier = Modifier.padding(bottom = 26.dp).size(60.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MaterialYouBadgeBackground(shapeIndex = badgeShape, opacity = badgeOpacity)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Text("85%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(26.dp))
+                }
+            }
+        }
+
+        @Composable
+        fun AnalogWatchFaceView(
+            isAod: Boolean,
+            dateFormat: String,
+            badgeShape: Int,
+            badgeOpacity: Float,
+            activeWidgets: Int,
+            showSeconds: Boolean
+        ) {
+            var hourAngle by remember { mutableStateOf(0f) }
+            var minuteAngle by remember { mutableStateOf(0f) }
+            var secondAngle by remember { mutableStateOf(0f) }
+
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val cal = Calendar.getInstance()
+                    val h = cal.get(Calendar.HOUR)
+                    val m = cal.get(Calendar.MINUTE)
+                    val s = cal.get(Calendar.SECOND)
+                    val ms = cal.get(Calendar.MILLISECOND)
+
+                    secondAngle = (s + ms / 1000f) * 6f
+                    minuteAngle = (m + s / 60f) * 6f
+                    hourAngle = (h + m / 60f) * 30f
+                    delay(if (isAod) 1000 else 40)
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (dateFormat != "-") {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 22.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = badgeOpacity * 0.25f))
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text(dateFormat, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (activeWidgets >= 2) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 22.dp)
+                            .size(64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MaterialYouBadgeBackground(shapeIndex = badgeShape, opacity = badgeOpacity)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Text("8,532", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (activeWidgets >= 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("85%", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val r = size.minDimension / 2f
+
+                    for (i in 0 until 12) {
+                        val rad = Math.toRadians((i * 30.0) - 90.0)
+                        val p1 = Offset((center.x + cos(rad) * r * 0.84f).toFloat(), (center.y + sin(rad) * r * 0.84f).toFloat())
+                        val p2 = Offset((center.x + cos(rad) * r * 0.98f).toFloat(), (center.y + sin(rad) * r * 0.98f).toFloat())
+                        drawLine(
+                            color = if (i % 3 == 0) Color.White else Color.White.copy(alpha = 0.5f),
+                            start = p1,
+                            end = p2,
+                            strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+
+                    val hourRad = Math.toRadians((hourAngle - 90.0))
+                    val hourEnd = Offset((center.x + cos(hourRad) * r * 0.52f).toFloat(), (center.y + sin(hourRad) * r * 0.52f).toFloat())
+                    drawLine(Color.White, center, hourEnd, strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(hourRad) * r * 0.44f).toFloat(), (center.y + sin(hourRad) * r * 0.44f).toFloat()), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
+
+                    val minRad = Math.toRadians((minuteAngle - 90.0))
+                    val minEnd = Offset((center.x + cos(minRad) * r * 0.78f).toFloat(), (center.y + sin(minRad) * r * 0.78f).toFloat())
+                    drawLine(Color.White, center, minEnd, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(minRad) * r * 0.70f).toFloat(), (center.y + sin(minRad) * r * 0.70f).toFloat()), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+
+                    if (!isAod && showSeconds) {
+                        val secRad = Math.toRadians((secondAngle - 90.0))
+                        val secEnd = Offset((center.x + cos(secRad) * r * 0.88f).toFloat(), (center.y + sin(secRad) * r * 0.88f).toFloat())
+                        drawLine(Color(0xFFFF80AB), center, secEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+                        drawCircle(Color(0xFFFF80AB), radius = 3.5.dp.toPx(), center = Offset((center.x + cos(secRad) * r * 0.42f).toFloat(), (center.y + sin(secRad) * r * 0.42f).toFloat()))
+                    }
+
+                    drawCircle(Color(0xFFFF80AB), radius = 5.dp.toPx(), center = center)
+                    drawCircle(Color.White, radius = 2.5.dp.toPx(), center = center)
+                }
+            }
+        }
+
+        @Composable
+        fun MaterialYouIcon(shapeIndex: Int, color: Color) {
             Canvas(modifier = Modifier.size(26.dp)) {
                 val center = Offset(size.width / 2f, size.height / 2f)
                 val r = size.minDimension / 2f
-
                 when (shapeIndex) {
-                    0 -> { // Squircle
-                        drawRoundRect(color, topLeft = Offset(r * 0.15f, r * 0.15f), size = Size(r * 1.7f, r * 1.7f), cornerRadius = CornerRadius(r * 0.45f, r * 0.45f))
-                    }
-                    1 -> { // Flower 12 Petals
+                    0 -> drawRoundRect(color, topLeft = Offset(r * 0.15f, r * 0.15f), size = Size(r * 1.7f, r * 1.7f), cornerRadius = CornerRadius(r * 0.45f, r * 0.45f))
+                    1 -> {
                         for (i in 0 until 12) {
                             val rad = Math.toRadians(i * 30.0)
-                            val p = Offset((center.x + cos(rad) * r * 0.55f).toFloat(), (center.y + sin(rad) * r * 0.55f).toFloat())
-                            drawCircle(color, radius = r * 0.38f, center = p)
+                            drawCircle(color, radius = r * 0.38f, center = Offset((center.x + cos(rad) * r * 0.55f).toFloat(), (center.y + sin(rad) * r * 0.55f).toFloat()))
                         }
                         drawCircle(color, radius = r * 0.65f, center = center)
                     }
-                    2 -> { // Clover 4 Petals
+                    2 -> {
                         for (i in 0 until 4) {
                             val rad = Math.toRadians(i * 90.0)
-                            val p = Offset((center.x + cos(rad) * r * 0.45f).toFloat(), (center.y + sin(rad) * r * 0.45f).toFloat())
-                            drawCircle(color, radius = r * 0.52f, center = p)
+                            drawCircle(color, radius = r * 0.52f, center = Offset((center.x + cos(rad) * r * 0.45f).toFloat(), (center.y + sin(rad) * r * 0.45f).toFloat()))
                         }
                     }
-                    3 -> { // Cookie / Soft Pill Petals
+                    3 -> {
                         for (i in 0 until 8) {
                             val rad = Math.toRadians(i * 45.0)
-                            val p = Offset((center.x + cos(rad) * r * 0.50f).toFloat(), (center.y + sin(rad) * r * 0.50f).toFloat())
-                            drawCircle(color, radius = r * 0.42f, center = p)
+                            drawCircle(color, radius = r * 0.42f, center = Offset((center.x + cos(rad) * r * 0.50f).toFloat(), (center.y + sin(rad) * r * 0.50f).toFloat()))
                         }
                     }
-                    4 -> { // Sunburst Hexagon
+                    4 -> {
                         val path = Path()
                         for (i in 0 until 6) {
                             val rad = Math.toRadians(i * 60.0 - 30.0)
@@ -700,11 +1012,11 @@ jobs:
                         path.close()
                         drawPath(path, color)
                     }
-                    5 -> { // Dome / Arch
+                    5 -> {
                         drawArc(color, 180f, 180f, true, Offset(r * 0.2f, r * 0.1f), Size(r * 1.6f, r * 1.4f))
                         drawRect(color, topLeft = Offset(r * 0.2f, r * 0.8f), size = Size(r * 1.6f, r * 0.9f))
                     }
-                    else -> { // Donut / Bullseye Target
+                    else -> {
                         drawCircle(color, radius = r * 0.9f, center = center)
                         drawCircle(Color.Transparent, radius = r * 0.55f, center = center)
                         drawCircle(color, radius = r * 0.28f, center = center)
@@ -713,7 +1025,6 @@ jobs:
             }
         }
 
-        // رسم خلفية المؤشر المختار على واجهة الساعة
         @Composable
         fun MaterialYouBadgeBackground(shapeIndex: Int, opacity: Float) {
             Canvas(modifier = Modifier.fillMaxSize()) {
@@ -743,139 +1054,4 @@ jobs:
                         }
                     }
                     4 -> {
-                        val path = Path()
-                        for (i in 0 until 6) {
-                            val rad = Math.toRadians(i * 60.0 - 30.0)
-                            val x = (center.x + cos(rad) * r * 0.95f).toFloat()
-                            val y = (center.y + sin(rad) * r * 0.95f).toFloat()
-                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                        }
-                        path.close()
-                        drawPath(path, badgeColor)
-                    }
-                    5 -> {
-                        drawArc(badgeColor, 180f, 180f, true, Offset(r * 0.1f, r * 0.05f), Size(r * 1.8f, r * 1.5f))
-                        drawRect(badgeColor, topLeft = Offset(r * 0.1f, r * 0.8f), size = Size(r * 1.8f, r * 1.0f))
-                    }
-                    else -> {
-                        drawCircle(badgeColor, radius = r * 0.92f, center = center)
-                    }
-                }
-            }
-        }
-
-        @Composable
-        fun AnalogClockMiniPreview(isAod: Boolean, badgeShape: Int, opacity: Float) {
-            var hourAngle by remember { mutableStateOf(0f) }
-            var minuteAngle by remember { mutableStateOf(0f) }
-            var secondAngle by remember { mutableStateOf(0f) }
-
-            LaunchedEffect(Unit) {
-                while (true) {
-                    val cal = Calendar.getInstance()
-                    val h = cal.get(Calendar.HOUR)
-                    val m = cal.get(Calendar.MINUTE)
-                    val s = cal.get(Calendar.SECOND)
-                    val ms = cal.get(Calendar.MILLISECOND)
-
-                    secondAngle = (s + ms / 1000f) * 6f
-                    minuteAngle = (m + s / 60f) * 6f
-                    hourAngle = (h + m / 60f) * 30f
-                    delay(if (isAod) 1000 else 40)
-                }
-            }
-
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                // شارة التاريخ 5 Feb في الأعلى
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 22.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.White.copy(alpha = opacity * 0.25f))
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                ) {
-                    Text("5 Feb", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-
-                // مؤشر الخطوات السفلي مع شكل Material You المختار
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 22.dp)
-                        .size(64.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    MaterialYouBadgeBackground(shapeIndex = badgeShape, opacity = opacity)
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                        Text("8,532", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                // مؤشر البطارية على اليسار
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text("85%", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                }
-
-                // رسم علامات الساعات والعقارب الحادة المفرغة الأصلية
-                Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
-                    val center = Offset(size.width / 2f, size.height / 2f)
-                    val r = size.minDimension / 2f
-
-                    for (i in 0 until 12) {
-                        val rad = Math.toRadians((i * 30.0) - 90.0)
-                        val p1 = Offset((center.x + cos(rad) * r * 0.84f).toFloat(), (center.y + sin(rad) * r * 0.84f).toFloat())
-                        val p2 = Offset((center.x + cos(rad) * r * 0.98f).toFloat(), (center.y + sin(rad) * r * 0.98f).toFloat())
-                        drawLine(
-                            color = if (i % 3 == 0) Color.White else Color.White.copy(alpha = 0.5f),
-                            start = p1,
-                            end = p2,
-                            strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-                    }
-
-                    // عقرب الساعات الحاد المفرغ
-                    val hourRad = Math.toRadians((hourAngle - 90.0))
-                    val hourEnd = Offset((center.x + cos(hourRad) * r * 0.52f).toFloat(), (center.y + sin(hourRad) * r * 0.52f).toFloat())
-                    drawLine(Color.White, center, hourEnd, strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(hourRad) * r * 0.44f).toFloat(), (center.y + sin(hourRad) * r * 0.44f).toFloat()), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
-
-                    // عقرب الدقائق الحاد المفرغ
-                    val minRad = Math.toRadians((minuteAngle - 90.0))
-                    val minEnd = Offset((center.x + cos(minRad) * r * 0.78f).toFloat(), (center.y + sin(minRad) * r * 0.78f).toFloat())
-                    drawLine(Color.White, center, minEnd, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(minRad) * r * 0.70f).toFloat(), (center.y + sin(minRad) * r * 0.70f).toFloat()), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
-
-                    // عقرب الثواني الوردي الرفيع
-                    if (!isAod) {
-                        val secRad = Math.toRadians((secondAngle - 90.0))
-                        val secEnd = Offset((center.x + cos(secRad) * r * 0.88f).toFloat(), (center.y + sin(secRad) * r * 0.88f).toFloat())
-                        drawLine(Color(0xFFFF80AB), center, secEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
-                        drawCircle(Color(0xFFFF80AB), radius = 3.5.dp.toPx(), center = Offset((center.x + cos(secRad) * r * 0.42f).toFloat(), (center.y + sin(secRad) * r * 0.42f).toFloat()))
-                    }
-
-                    // النقطة المركزية
-                    drawCircle(Color(0xFFFF80AB), radius = 5.dp.toPx(), center = center)
-                    drawCircle(Color.White, radius = 2.5.dp.toPx(), center = center)
-                }
-            }
-        }
-        EOF
-
-    - name: Build Phone App APK Only
-      run: gradle :app:assembleDebug -Pandroid.useAndroidX=true --no-daemon --stacktrace
-
-    - name: Upload Phone APK Only
-      uses: actions/upload-artifact@v4
-      with:
-        name: PhoneApp-Only
-        path: app/build/outputs/apk/debug/*.apk
+                        val path
