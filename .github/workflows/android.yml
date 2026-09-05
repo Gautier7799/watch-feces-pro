@@ -24,7 +24,7 @@ jobs:
       with:
         gradle-version: '8.10'
 
-    - name: Auto Configure Environment
+    - name: Auto Configure Environment & Manifest
       run: |
         echo "android.useAndroidX=true" > gradle.properties
         cat << 'EOF' > build.gradle.kts
@@ -33,6 +33,25 @@ jobs:
             id("org.jetbrains.kotlin.android") version "2.0.0" apply false
             id("org.jetbrains.kotlin.plugin.compose") version "2.0.0" apply false
         }
+        EOF
+        mkdir -p app/src/main
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application
+                android:label="Pixel Watch Pro"
+                android:supportsRtl="true">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true"
+                    android:theme="@android:style/Theme.Material.NoActionBar">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
         EOF
 
     - name: Build Debug APK
