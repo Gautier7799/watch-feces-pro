@@ -24,8 +24,16 @@ jobs:
       with:
         gradle-version: '8.10'
 
-    - name: Configure AndroidX
-      run: echo "android.useAndroidX=true" > gradle.properties
+    - name: Auto Configure Environment
+      run: |
+        echo "android.useAndroidX=true" > gradle.properties
+        cat << 'EOF' > build.gradle.kts
+        plugins {
+            id("com.android.application") version "8.7.0" apply false
+            id("org.jetbrains.kotlin.android") version "2.0.0" apply false
+            id("org.jetbrains.kotlin.plugin.compose") version "2.0.0" apply false
+        }
+        EOF
 
     - name: Build Debug APK
       run: gradle :app:assembleDebug -Pandroid.useAndroidX=true --no-daemon --stacktrace
