@@ -26,7 +26,6 @@ jobs:
 
     - name: Clean Old Source and Configure Phone App
       run: |
-        # حذف الملفات القديمة المتعارضة
         rm -rf app/src/main/java
         rm -rf wear/src/main/java 2>/dev/null || true
 
@@ -79,8 +78,8 @@ jobs:
                 applicationId = "com.aistudio.pixelwatch.constructor"
                 minSdk = 26
                 targetSdk = 35
-                versionCode = 8
-                versionName = "8.0"
+                versionCode = 9
+                versionName = "9.0"
             }
 
             buildFeatures {
@@ -143,6 +142,7 @@ jobs:
         import androidx.compose.foundation.background
         import androidx.compose.foundation.border
         import androidx.compose.foundation.clickable
+        import androidx.compose.foundation.horizontalScroll
         import androidx.compose.foundation.layout.*
         import androidx.compose.foundation.rememberScrollState
         import androidx.compose.foundation.shape.CircleShape
@@ -155,9 +155,13 @@ jobs:
         import androidx.compose.ui.Alignment
         import androidx.compose.ui.Modifier
         import androidx.compose.ui.draw.clip
+        import androidx.compose.ui.geometry.CornerRadius
         import androidx.compose.ui.geometry.Offset
+        import androidx.compose.ui.geometry.Size
         import androidx.compose.ui.graphics.Color
+        import androidx.compose.ui.graphics.Path
         import androidx.compose.ui.graphics.StrokeCap
+        import androidx.compose.ui.graphics.drawscope.Stroke
         import androidx.compose.ui.text.font.FontFamily
         import androidx.compose.ui.text.font.FontWeight
         import androidx.compose.ui.unit.dp
@@ -192,19 +196,20 @@ jobs:
             val scope = rememberCoroutineScope()
             var currentScreen by remember { mutableStateOf("Constructeur") }
 
-            var isDigital by remember { mutableStateOf(true) }
+            var isDigital by remember { mutableStateOf(false) } // الافتراضي العقاربي كما بآخر صورك
             var isAod by remember { mutableStateOf(false) }
 
             var selectedFont by remember { mutableStateOf("System") }
+
+            // 0: Squircle, 1: Flower 12, 2: Clover 4, 3: Cookie Pill, 4: Sunburst 8, 5: Dome, 6: Donut
             var selectedBadgeShape by remember { mutableStateOf(0) }
             var badgeOpacity by remember { mutableStateOf(0.85f) }
 
             val colorsList = listOf(Color.Black, Color(0xFF212529), Color(0xFF495057), Color(0xFF2E694E), Color(0xFFFF7043))
-            var selectedColorIndex by remember { mutableStateOf(0) }
+            var selectedColorIndex by remember { mutableStateOf(3) }
 
             var batteryDisplayStyle by remember { mutableStateOf("Icon + %") }
             var isBatteryExpanded by remember { mutableStateOf(true) }
-            var selectedVitrineModel by remember { mutableStateOf(0) }
 
             ModalNavigationDrawer(
                 drawerState = drawerState,
@@ -279,7 +284,7 @@ jobs:
                                 .padding(horizontal = 20.dp, vertical = 6.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // التبديل بين Numérique و Analogique مع الأيقونات كالصورة
+                            // التبديل بين Numérique و Analogique مع الأيقونات والأسلوب الدائري الأنيق
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -330,12 +335,12 @@ jobs:
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // معاينة شاشة الساعة الحية
+                            // معاينة شاشة الساعة الحية المتطابقة 100% مع صورك الأخيرة
                             Box(
                                 modifier = Modifier
                                     .size(310.dp)
                                     .clip(CircleShape)
-                                    .background(colorsList[selectedColorIndex]),
+                                    .background(Color(0xFF0F1113)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (isDigital) {
@@ -377,17 +382,10 @@ jobs:
                                         }
 
                                         Box(
-                                            modifier = Modifier
-                                                .padding(bottom = 28.dp)
-                                                .clip(when(selectedBadgeShape) {
-                                                    1 -> CircleShape
-                                                    2 -> RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                                                    else -> RoundedCornerShape(18.dp)
-                                                })
-                                                .background(Color.White.copy(alpha = badgeOpacity * 0.35f))
-                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                            modifier = Modifier.padding(bottom = 28.dp).size(62.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
+                                            MaterialYouBadgeBackground(shapeIndex = selectedBadgeShape, opacity = badgeOpacity)
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                 Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                                                 Text("85%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -395,13 +393,14 @@ jobs:
                                         }
                                     }
                                 } else {
-                                    AnalogClockMiniPreview(isAod = isAod)
+                                    // النمط العقاربي الفاخر من لقطة شاشتك (عقارب حادة مفرغة ومؤشر الخطوات السفلي ومؤشر البطارية)
+                                    AnalogClockMiniPreview(isAod = isAod, badgeShape = selectedBadgeShape, opacity = badgeOpacity)
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // زرا Actif و AOD
+                            // زرا Actif و AOD وزر إعادة التعيين
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -440,7 +439,6 @@ jobs:
                                         selectedFont = "System"
                                         selectedBadgeShape = 0
                                         badgeOpacity = 0.85f
-                                        selectedColorIndex = 0
                                     },
                                     modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFE4E7DF))
                                 ) {
@@ -450,54 +448,14 @@ jobs:
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // قسم Modèles de montre (الأنماط)
+                            // بطاقة خيارات المظهر: الخطوط وأشكال Material You والشفافية والألوان
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(22.dp),
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFFEAEFE7))
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Modèles de montre (الأنماط)", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1A1C18))
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        listOf(
-                                            Pair("Pixel Chrono", "Triple Dial"),
-                                            Pair("Peach Active", "Warm Sport"),
-                                            Pair("Kinetic Sphere", "Neon 3D"),
-                                            Pair("Viking Runes", "Glowing Red")
-                                        ).chunked(2).forEach { colItems ->
-                                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                colItems.forEachIndexed { _, item ->
-                                                    Card(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .height(90.dp)
-                                                            .clickable { },
-                                                        shape = RoundedCornerShape(16.dp),
-                                                        colors = CardDefaults.cardColors(containerColor = Color.White)
-                                                    ) {
-                                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.Center) {
-                                                            Text(item.first, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1A1C18))
-                                                            Text(item.second, fontSize = 11.sp, color = Color(0xFF6B7068))
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // قسم Police (الخطوط)
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(22.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFEAEFE7))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
+                                    // 1. قسم الخطوط (Police)
                                     Text("Police (الخطوط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1A1C18))
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -517,42 +475,56 @@ jobs:
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    // Forme du fond (أشكال المؤشرات)
-                                    Text("Forme du fond (أشكال المؤشرات)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1A1C18))
+                                    // 2. أشكال Material You الحقيقية لـ Forme du fond (المحددة بدقة في صورك)
+                                    Text("Forme du fond (أشكال المؤشرات Material You)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1A1C18))
                                     Spacer(modifier = Modifier.height(10.dp))
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        listOf(Icons.Default.Brightness7, Icons.Default.Circle, Icons.Default.Shield, Icons.Default.FilterVintage, Icons.Default.AccountCircle).forEachIndexed { index, icon ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        // الأشكال الـ 7 لـ Material You
+                                        val shapes = listOf("Squircle", "Flower12", "Clover4", "Cookie", "Sunburst", "Dome", "Donut")
+                                        shapes.forEachIndexed { index, shapeName ->
                                             val isSelected = selectedBadgeShape == index
                                             Box(
                                                 modifier = Modifier
-                                                    .size(46.dp)
-                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .size(52.dp)
+                                                    .clip(RoundedCornerShape(16.dp))
                                                     .background(if (isSelected) Color(0xFF1E3A2F) else Color.White)
+                                                    .border(if (isSelected) 2.dp else 0.dp, Color(0xFF2E694E), RoundedCornerShape(16.dp))
                                                     .clickable { selectedBadgeShape = index },
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Icon(icon, contentDescription = null, tint = if (isSelected) Color.White else Color(0xFF434842), modifier = Modifier.size(20.dp))
+                                                MaterialYouIconRenderer(
+                                                    shapeIndex = index,
+                                                    color = if (isSelected) Color.White else Color(0xFF434842)
+                                                )
                                             }
                                         }
                                     }
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    // Opacité du fond (شفافية الخلفية)
+                                    // 3. سلايدر الشفافية (Opacité du fond) بتصميم Material You العريض
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Opacité du fond (شفافية الخلفية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1A1C18))
+                                        Text("Opacité du fond (الشفافية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1A1C18))
                                         Text("${(badgeOpacity * 100).toInt()}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E694E))
                                     }
                                     Slider(
                                         value = badgeOpacity,
                                         onValueChange = { badgeOpacity = it },
                                         valueRange = 0f..1f,
-                                        colors = SliderDefaults.colors(thumbColor = Color(0xFF2E694E), activeTrackColor = Color(0xFF2E694E))
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color(0xFF2E694E),
+                                            activeTrackColor = Color(0xFF2E694E),
+                                            inactiveTrackColor = Color(0xFFC7CDC3)
+                                        ),
+                                        modifier = Modifier.height(28.dp)
                                     )
 
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
 
-                                    // Couleur de fond (الألوان)
+                                    // 4. دوائر الألوان لـ Couleur de fond مع علامة الدائرة المكتملة كالصورة
                                     Text("Couleur de fond (الألوان)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1A1C18))
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -560,11 +532,11 @@ jobs:
                                             val isSelected = selectedColorIndex == index
                                             Box(
                                                 modifier = Modifier
-                                                    .size(42.dp)
+                                                    .size(44.dp)
                                                     .clip(CircleShape)
                                                     .background(color)
                                                     .clickable { selectedColorIndex = index }
-                                                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color(0xFF2E694E) else Color.Gray, CircleShape),
+                                                    .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color(0xFF2E694E) else Color.LightGray, CircleShape),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (isSelected) {
@@ -578,7 +550,7 @@ jobs:
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // مؤشرات البطارية والخطوات (Complications)
+                            // قسم مؤشرات البطارية والخطوات (Complications)
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(22.dp),
@@ -684,8 +656,116 @@ jobs:
             }
         }
 
+        // رسم أيقونات Material You داخل القائمة الهندسية
         @Composable
-        fun AnalogClockMiniPreview(isAod: Boolean) {
+        fun MaterialYouIconRenderer(shapeIndex: Int, color: Color) {
+            Canvas(modifier = Modifier.size(26.dp)) {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val r = size.minDimension / 2f
+
+                when (shapeIndex) {
+                    0 -> { // Squircle
+                        drawRoundRect(color, topLeft = Offset(r * 0.15f, r * 0.15f), size = Size(r * 1.7f, r * 1.7f), cornerRadius = CornerRadius(r * 0.45f, r * 0.45f))
+                    }
+                    1 -> { // Flower 12 Petals
+                        for (i in 0 until 12) {
+                            val rad = Math.toRadians(i * 30.0)
+                            val p = Offset((center.x + cos(rad) * r * 0.55f).toFloat(), (center.y + sin(rad) * r * 0.55f).toFloat())
+                            drawCircle(color, radius = r * 0.38f, center = p)
+                        }
+                        drawCircle(color, radius = r * 0.65f, center = center)
+                    }
+                    2 -> { // Clover 4 Petals
+                        for (i in 0 until 4) {
+                            val rad = Math.toRadians(i * 90.0)
+                            val p = Offset((center.x + cos(rad) * r * 0.45f).toFloat(), (center.y + sin(rad) * r * 0.45f).toFloat())
+                            drawCircle(color, radius = r * 0.52f, center = p)
+                        }
+                    }
+                    3 -> { // Cookie / Soft Pill Petals
+                        for (i in 0 until 8) {
+                            val rad = Math.toRadians(i * 45.0)
+                            val p = Offset((center.x + cos(rad) * r * 0.50f).toFloat(), (center.y + sin(rad) * r * 0.50f).toFloat())
+                            drawCircle(color, radius = r * 0.42f, center = p)
+                        }
+                    }
+                    4 -> { // Sunburst Hexagon
+                        val path = Path()
+                        for (i in 0 until 6) {
+                            val rad = Math.toRadians(i * 60.0 - 30.0)
+                            val x = (center.x + cos(rad) * r * 0.9f).toFloat()
+                            val y = (center.y + sin(rad) * r * 0.9f).toFloat()
+                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                        }
+                        path.close()
+                        drawPath(path, color)
+                    }
+                    5 -> { // Dome / Arch
+                        drawArc(color, 180f, 180f, true, Offset(r * 0.2f, r * 0.1f), Size(r * 1.6f, r * 1.4f))
+                        drawRect(color, topLeft = Offset(r * 0.2f, r * 0.8f), size = Size(r * 1.6f, r * 0.9f))
+                    }
+                    else -> { // Donut / Bullseye Target
+                        drawCircle(color, radius = r * 0.9f, center = center)
+                        drawCircle(Color.Transparent, radius = r * 0.55f, center = center)
+                        drawCircle(color, radius = r * 0.28f, center = center)
+                    }
+                }
+            }
+        }
+
+        // رسم خلفية المؤشر المختار على واجهة الساعة
+        @Composable
+        fun MaterialYouBadgeBackground(shapeIndex: Int, opacity: Float) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val r = size.minDimension / 2f
+                val badgeColor = Color.White.copy(alpha = opacity * 0.35f)
+
+                when (shapeIndex) {
+                    0 -> drawRoundRect(badgeColor, topLeft = Offset(r * 0.1f, r * 0.1f), size = Size(r * 1.8f, r * 1.8f), cornerRadius = CornerRadius(r * 0.45f, r * 0.45f))
+                    1 -> {
+                        for (i in 0 until 12) {
+                            val rad = Math.toRadians(i * 30.0)
+                            drawCircle(badgeColor, radius = r * 0.38f, center = Offset((center.x + cos(rad) * r * 0.55f).toFloat(), (center.y + sin(rad) * r * 0.55f).toFloat()))
+                        }
+                        drawCircle(badgeColor, radius = r * 0.65f, center = center)
+                    }
+                    2 -> {
+                        for (i in 0 until 4) {
+                            val rad = Math.toRadians(i * 90.0)
+                            drawCircle(badgeColor, radius = r * 0.52f, center = Offset((center.x + cos(rad) * r * 0.45f).toFloat(), (center.y + sin(rad) * r * 0.45f).toFloat()))
+                        }
+                    }
+                    3 -> {
+                        for (i in 0 until 8) {
+                            val rad = Math.toRadians(i * 45.0)
+                            drawCircle(badgeColor, radius = r * 0.42f, center = Offset((center.x + cos(rad) * r * 0.50f).toFloat(), (center.y + sin(rad) * r * 0.50f).toFloat()))
+                        }
+                    }
+                    4 -> {
+                        val path = Path()
+                        for (i in 0 until 6) {
+                            val rad = Math.toRadians(i * 60.0 - 30.0)
+                            val x = (center.x + cos(rad) * r * 0.95f).toFloat()
+                            val y = (center.y + sin(rad) * r * 0.95f).toFloat()
+                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                        }
+                        path.close()
+                        drawPath(path, badgeColor)
+                    }
+                    5 -> {
+                        drawArc(badgeColor, 180f, 180f, true, Offset(r * 0.1f, r * 0.05f), Size(r * 1.8f, r * 1.5f))
+                        drawRect(badgeColor, topLeft = Offset(r * 0.1f, r * 0.8f), size = Size(r * 1.8f, r * 1.0f))
+                    }
+                    else -> {
+                        drawCircle(badgeColor, radius = r * 0.92f, center = center)
+                    }
+                }
+            }
+        }
+
+        @Composable
+        fun AnalogClockMiniPreview(isAod: Boolean, badgeShape: Int, opacity: Float) {
             var hourAngle by remember { mutableStateOf(0f) }
             var minuteAngle by remember { mutableStateOf(0f) }
             var secondAngle by remember { mutableStateOf(0f) }
@@ -705,27 +785,88 @@ jobs:
                 }
             }
 
-            Canvas(modifier = Modifier.fillMaxSize(0.9f)) {
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val r = size.minDimension / 2f
-
-                for (i in 0 until 12) {
-                    val rad = Math.toRadians((i * 30.0) - 90.0)
-                    val p1 = Offset((center.x + cos(rad) * r * 0.88f).toFloat(), (center.y + sin(rad) * r * 0.88f).toFloat())
-                    val p2 = Offset((center.x + cos(rad) * r).toFloat(), (center.y + sin(rad) * r).toFloat())
-                    drawLine(Color.White, p1, p2, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                // شارة التاريخ 5 Feb في الأعلى
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 22.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White.copy(alpha = opacity * 0.25f))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("5 Feb", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
-                val hourRad = Math.toRadians((hourAngle - 90.0))
-                val minRad = Math.toRadians((minuteAngle - 90.0))
-                drawLine(Color.White, center, Offset((center.x + cos(hourRad) * r * 0.52f).toFloat(), (center.y + sin(hourRad) * r * 0.52f).toFloat()), 6.dp.toPx(), StrokeCap.Round)
-                drawLine(Color.LightGray, center, Offset((center.x + cos(minRad) * r * 0.78f).toFloat(), (center.y + sin(minRad) * r * 0.78f).toFloat()), 4.dp.toPx(), StrokeCap.Round)
-
-                if (!isAod) {
-                    val secRad = Math.toRadians((secondAngle - 90.0))
-                    drawLine(Color(0xFFFF3D00), center, Offset((center.x + cos(secRad) * r * 0.88f).toFloat(), (center.y + sin(secRad) * r * 0.88f).toFloat()), 2.dp.toPx(), StrokeCap.Round)
+                // مؤشر الخطوات السفلي مع شكل Material You المختار
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 22.dp)
+                        .size(64.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MaterialYouBadgeBackground(shapeIndex = badgeShape, opacity = opacity)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                        Text("8,532", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
-                drawCircle(Color.White, radius = 5.dp.toPx(), center = center)
+
+                // مؤشر البطارية على اليسار
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("85%", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+
+                // رسم علامات الساعات والعقارب الحادة المفرغة الأصلية
+                Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val r = size.minDimension / 2f
+
+                    for (i in 0 until 12) {
+                        val rad = Math.toRadians((i * 30.0) - 90.0)
+                        val p1 = Offset((center.x + cos(rad) * r * 0.84f).toFloat(), (center.y + sin(rad) * r * 0.84f).toFloat())
+                        val p2 = Offset((center.x + cos(rad) * r * 0.98f).toFloat(), (center.y + sin(rad) * r * 0.98f).toFloat())
+                        drawLine(
+                            color = if (i % 3 == 0) Color.White else Color.White.copy(alpha = 0.5f),
+                            start = p1,
+                            end = p2,
+                            strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+
+                    // عقرب الساعات الحاد المفرغ
+                    val hourRad = Math.toRadians((hourAngle - 90.0))
+                    val hourEnd = Offset((center.x + cos(hourRad) * r * 0.52f).toFloat(), (center.y + sin(hourRad) * r * 0.52f).toFloat())
+                    drawLine(Color.White, center, hourEnd, strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(hourRad) * r * 0.44f).toFloat(), (center.y + sin(hourRad) * r * 0.44f).toFloat()), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
+
+                    // عقرب الدقائق الحاد المفرغ
+                    val minRad = Math.toRadians((minuteAngle - 90.0))
+                    val minEnd = Offset((center.x + cos(minRad) * r * 0.78f).toFloat(), (center.y + sin(minRad) * r * 0.78f).toFloat())
+                    drawLine(Color.White, center, minEnd, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(minRad) * r * 0.70f).toFloat(), (center.y + sin(minRad) * r * 0.70f).toFloat()), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+
+                    // عقرب الثواني الوردي الرفيع
+                    if (!isAod) {
+                        val secRad = Math.toRadians((secondAngle - 90.0))
+                        val secEnd = Offset((center.x + cos(secRad) * r * 0.88f).toFloat(), (center.y + sin(secRad) * r * 0.88f).toFloat())
+                        drawLine(Color(0xFFFF80AB), center, secEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+                        drawCircle(Color(0xFFFF80AB), radius = 3.5.dp.toPx(), center = Offset((center.x + cos(secRad) * r * 0.42f).toFloat(), (center.y + sin(secRad) * r * 0.42f).toFloat()))
+                    }
+
+                    // النقطة المركزية
+                    drawCircle(Color(0xFFFF80AB), radius = 5.dp.toPx(), center = center)
+                    drawCircle(Color.White, radius = 2.5.dp.toPx(), center = center)
+                }
             }
         }
         EOF
