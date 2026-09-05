@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android & WearOS APKs
 
 on:
   push:
@@ -24,13 +24,33 @@ jobs:
       with:
         gradle-version: '8.10'
 
-    - name: Auto Configure Memory & Environment
+    - name: Configure Wear OS & Phone Modules
       run: |
         cat << 'EOF' > gradle.properties
         android.useAndroidX=true
-        org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError
+        org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m
         org.gradle.parallel=true
         EOF
+
+        cat << 'EOF' > settings.gradle.kts
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        rootProject.name = "PixelWatchPro"
+        include(":app", ":wear")
+        EOF
+
         cat << 'EOF' > build.gradle.kts
         plugins {
             id("com.android.application") version "8.7.0" apply false
@@ -38,17 +58,71 @@ jobs:
             id("org.jetbrains.kotlin.plugin.compose") version "2.0.0" apply false
         }
         EOF
-        mkdir -p app/src/main
-        cat << 'EOF' > app/src/main/AndroidManifest.xml
+
+        # ----------------- تجهيز موديول الساعة (Wear OS) -----------------
+        mkdir -p wear/src/main/java/com/example/wear
+        
+        cat << 'EOF' > wear/build.gradle.kts
+        plugins {
+            id("com.android.application")
+            id("org.jetbrains.kotlin.android")
+            id("org.jetbrains.kotlin.plugin.compose")
+        }
+
+        android {
+            namespace = "com.example.wear"
+            compileSdk = 35
+
+            defaultConfig {
+                applicationId = "com.aistudio.pixelwatch.wearface"
+                minSdk = 28
+                targetSdk = 34
+                versionCode = 1
+                versionName = "1.0"
+            }
+
+            buildFeatures {
+                compose = true
+            }
+
+            compileOptions {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+
+        dependencies {
+            val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+            implementation(composeBom)
+            implementation("androidx.activity:activity-compose:1.9.2")
+            implementation("androidx.compose.ui:ui")
+            implementation("androidx.compose.ui:ui-graphics")
+            implementation("androidx.compose.material3:material3")
+            implementation("androidx.compose.material:material-icons-extended")
+            implementation("androidx.core:core-ktx:1.13.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+        }
+        EOF
+
+        cat << 'EOF' > wear/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-feature android:name="android.hardware.type.watch" />
+            
             <application
-                android:label="Pixel Watch Pro"
-                android:supportsRtl="true">
+                android:allowBackup="true"
+                android:label="Viking Watch Face"
+                android:supportsRtl="true"
+                android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
                 <activity
-                    android:name=".MainActivity"
+                    android:name=".WearMainActivity"
                     android:exported="true"
-                    android:theme="@android:style/Theme.Material.NoActionBar">
+                    android:keepScreenOn="true"
+                    android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
                         <category android:name="android.intent.category.LAUNCHER" />
@@ -58,11 +132,221 @@ jobs:
         </manifest>
         EOF
 
-    - name: Build Debug APK
-      run: gradle :app:assembleDebug -Pandroid.useAndroidX=true --no-daemon --stacktrace
+        cat << 'EOF' > wear/src/main/java/com/example/wear/WearMainActivity.kt
+        package com.example.wear
 
-    - name: Upload Debug APK
+        import android.os.Bundle
+        import androidx.activity.ComponentActivity
+        import androidx.activity.compose.setContent
+        import androidx.compose.foundation.Canvas
+        import androidx.compose.foundation.background
+        import androidx.compose.foundation.clickable
+        import androidx.compose.foundation.layout.*
+        import androidx.compose.foundation.shape.CircleShape
+        import androidx.compose.material.icons.Icons
+        import androidx.compose.material.icons.filled.BatteryChargingFull
+        import androidx.compose.material.icons.filled.Favorite
+        import androidx.compose.material3.Icon
+        import androidx.compose.material3.Text
+        import androidx.compose.runtime.*
+        import androidx.compose.ui.Alignment
+        import androidx.compose.ui.Modifier
+        import androidx.compose.ui.draw.clip
+        import androidx.compose.ui.geometry.Offset
+        import androidx.compose.ui.graphics.Color
+        import androidx.compose.ui.graphics.Path
+        import androidx.compose.ui.graphics.StrokeCap
+        import androidx.compose.ui.graphics.drawscope.Stroke
+        import androidx.compose.ui.text.font.FontWeight
+        import androidx.compose.ui.unit.dp
+        import androidx.compose.ui.unit.sp
+        import kotlinx.coroutines.delay
+        import java.util.Calendar
+        import kotlin.math.cos
+        import kotlin.math.sin
+
+        class WearMainActivity : ComponentActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                setContent {
+                    VikingWearWatchScreen()
+                }
+            }
+        }
+
+        @Composable
+        fun VikingWearWatchScreen() {
+            var hourAngle by remember { mutableStateOf(0f) }
+            var minuteAngle by remember { mutableStateOf(0f) }
+            var secondAngle by remember { mutableStateOf(0f) }
+            var isAod by remember { mutableStateOf(false) }
+
+            val norseRed = Color(0xFFFF3D00)
+            val accentPeach = Color(0xFFFF8A65)
+
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val cal = Calendar.getInstance()
+                    val hour = cal.get(Calendar.HOUR)
+                    val minute = cal.get(Calendar.MINUTE)
+                    val second = cal.get(Calendar.SECOND)
+                    val millis = cal.get(Calendar.MILLISECOND)
+
+                    secondAngle = (second + millis / 1000f) * 6f
+                    minuteAngle = (minute + second / 60f) * 6f
+                    hourAngle = (hour + minute / 60f) * 30f
+
+                    delay(if (isAod) 1000 else 200)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(Color.Black)
+                    .clickable { isAod = !isAod },
+                contentAlignment = Alignment.Center
+            ) {
+                // رسم بوصلة الفايكنج الرونية (Vegvisir) بدقة شاشة الساعة
+                Canvas(modifier = Modifier.fillMaxSize(0.86f)) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val r = size.minDimension / 2f
+
+                    // الدوائر الرونية المركزية
+                    drawCircle(
+                        color = if (isAod) Color.DarkGray else norseRed.copy(alpha = 0.5f),
+                        radius = r * 0.28f,
+                        center = center,
+                        style = Stroke(width = 1.5.dp.toPx())
+                    )
+
+                    // أذرع بوصلة الفايكنج الـ 8 (Vegvisir 8 Spoke Staves)
+                    for (i in 0 until 8) {
+                        val rad = Math.toRadians((i * 45.0) - 90.0)
+                        val endX = (center.x + cos(rad) * (r * 0.88f)).toFloat()
+                        val endY = (center.y + sin(rad) * (r * 0.88f)).toFloat()
+
+                        drawLine(
+                            color = if (isAod) Color.Gray else norseRed,
+                            start = center,
+                            end = Offset(endX, endY),
+                            strokeWidth = 2.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+
+                        // تشعبات الرونات الجانبية في أطراف البوصلة
+                        val midRad = rad + Math.PI / 2
+                        val branchX = (center.x + cos(rad) * (r * 0.65f)).toFloat()
+                        val branchY = (center.y + sin(rad) * (r * 0.65f)).toFloat()
+                        val barSpan = 8.dp.toPx()
+                        drawLine(
+                            color = if (isAod) Color.Gray else norseRed,
+                            start = Offset((branchX - cos(midRad) * barSpan).toFloat(), (branchY - sin(midRad) * barSpan).toFloat()),
+                            end = Offset((branchX + cos(midRad) * barSpan).toFloat(), (branchY + sin(midRad) * barSpan).toFloat()),
+                            strokeWidth = 1.8.dp.toPx()
+                        )
+                    }
+
+                    // علامات الساعات المحيطية
+                    for (i in 0 until 12) {
+                        val markRad = Math.toRadians((i * 30.0) - 90.0)
+                        val p1 = Offset(
+                            (center.x + cos(markRad) * (r * 0.92f)).toFloat(),
+                            (center.y + sin(markRad) * (r * 0.92f)).toFloat()
+                        )
+                        val p2 = Offset(
+                            (center.x + cos(markRad) * (r * 1.0f)).toFloat(),
+                            (center.y + sin(markRad) * (r * 1.0f)).toFloat()
+                        )
+                        drawLine(
+                            color = if (i % 3 == 0) accentPeach else Color.White.copy(alpha = 0.6f),
+                            start = p1,
+                            end = p2,
+                            strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+
+                    // عقرب الساعات
+                    val hourRad = Math.toRadians((hourAngle - 90.0))
+                    val hourLen = r * 0.50f
+                    drawLine(
+                        color = Color.White,
+                        start = center,
+                        end = Offset((center.x + cos(hourRad) * hourLen).toFloat(), (center.y + sin(hourRad) * hourLen).toFloat()),
+                        strokeWidth = 6.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+
+                    // عقرب الدقائق
+                    val minRad = Math.toRadians((minuteAngle - 90.0))
+                    val minLen = r * 0.76f
+                    drawLine(
+                        color = accentPeach,
+                        start = center,
+                        end = Offset((center.x + cos(minRad) * minLen).toFloat(), (center.y + sin(minRad) * minLen).toFloat()),
+                        strokeWidth = 4.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+
+                    // عقرب الثواني (يختفي في وضع السكون AOD لتوفير البطارية)
+                    if (!isAod) {
+                        val secRad = Math.toRadians((secondAngle - 90.0))
+                        val secLen = r * 0.88f
+                        drawLine(
+                            color = norseRed,
+                            start = center,
+                            end = Offset((center.x + cos(secRad) * secLen).toFloat(), (center.y + sin(secRad) * secLen).toFloat()),
+                            strokeWidth = 2.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+
+                    // النقطة المركزية
+                    drawCircle(color = Color.White, radius = 5.dp.toPx(), center = center)
+                    drawCircle(color = Color.Black, radius = 2.dp.toPx(), center = center)
+                }
+
+                // مؤشرات النبض والبطارية الذكية
+                if (!isAod) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 22.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Favorite, contentDescription = null, tint = norseRed, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("76", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 22.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.BatteryChargingFull, contentDescription = null, tint = accentPeach, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("88%", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        EOF
+
+    - name: Build Both Debug APKs
+      run: gradle assembleDebug -Pandroid.useAndroidX=true --no-daemon --stacktrace
+
+    - name: Prepare Artifacts
+      run: |
+        mkdir -p dist
+        cp app/build/outputs/apk/debug/*.apk dist/PixelWatch-Phone.apk
+        cp wear/build/outputs/apk/debug/*.apk dist/PixelWatch-WearOS.apk
+
+    - name: Upload Both APKs
       uses: actions/upload-artifact@v4
       with:
-        name: PixelWatch-Pro-APK
-        path: app/build/outputs/apk/debug/*.apk
+        name: PixelWatch-Complete-Suite
+        path: dist/*.apk
