@@ -24,7 +24,7 @@ jobs:
       with:
         gradle-version: '8.10'
 
-    - name: Clean & Build V19 Analog Pro App
+    - name: Clean & Build V21 Pure Analog Pro App
       run: |
         rm -rf app/src/main/java
         rm -rf wear/src/main/java 2>/dev/null || true
@@ -78,8 +78,8 @@ jobs:
                 applicationId = "com.aistudio.pixelwatch.analog"
                 minSdk = 26
                 targetSdk = 35
-                versionCode = 19
-                versionName = "19.0"
+                versionCode = 21
+                versionName = "21.0"
             }
 
             buildFeatures {
@@ -224,6 +224,14 @@ jobs:
             MINIMAL("Minimal (بسيطة)")
         }
 
+        enum class DialIndexStyle(val title: String) {
+            NONE("Sans (بدون علامات)"),
+            CLASSIC("Classique (خطوط بيضاء)"),
+            RED_DOTS("Points rouges (نقاط وخطوط)"),
+            NUMBERS("Chiffres (12, 3, 6, 9)"),
+            MINIMAL_4("4 Index (علامات رئيسية)")
+        }
+
         @OptIn(ExperimentalMaterial3Api::class)
         @Composable
         fun AnalogMasterWatchFaceApp() {
@@ -272,7 +280,7 @@ jobs:
             // 5. صيغة التاريخ
             var dateFormatChoice by remember { mutableStateOf("Mon 5") }
 
-            // 6. خلفية وقرص الساعة
+            // 6. خلفية وقرص الساعة والأنماط
             var selectedBgImageUri by remember { mutableStateOf<Uri?>(null) }
             val photoPickerLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.GetContent()
@@ -286,7 +294,8 @@ jobs:
                 Color(0xFFFFFFFF)
             )
             var selectedDialColorIndex by remember { mutableStateOf(0) }
-            var showHourIndices by remember { mutableStateOf(true) }
+            // تختفي العلامات والنقاط الحمراء افتراضياً (None) مع إمكانية تفعيلها واختيار أنماط أخرى
+            var selectedIndexStyle by remember { mutableStateOf(DialIndexStyle.NONE) }
 
             var showSaveDialog by remember { mutableStateOf(false) }
             var showInstallDialog by remember { mutableStateOf(false) }
@@ -358,16 +367,23 @@ jobs:
             ) {
                 Scaffold(
                     topBar = {
+                        // إنزال الأيقونات العلوية للأسفل بحرية وتفادي النوتش
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(top = 22.dp, start = 16.dp, end = 16.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White, modifier = Modifier.size(28.dp))
+                            IconButton(
+                                onClick = { scope.launch { drawerState.open() } },
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF161E18))
+                            ) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White, modifier = Modifier.size(24.dp))
                             }
                             Text(
                                 currentScreen,
@@ -375,8 +391,14 @@ jobs:
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
-                            IconButton(onClick = { showSaveDialog = true }) {
-                                Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5), modifier = Modifier.size(28.dp))
+                            IconButton(
+                                onClick = { showSaveDialog = true },
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF161E18))
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5), modifier = Modifier.size(24.dp))
                             }
                         }
                     },
@@ -390,6 +412,7 @@ jobs:
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            // شريط الأدوات السريع
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -432,16 +455,9 @@ jobs:
                                 }
                             }
 
-                            Text(
-                                "🖐️ اسحب أي أيقونة (التاريخ / البطارية / الخطوات) لوضعها في أي مكان تريده",
-                                fontSize = 11.sp,
-                                color = Color(0xFF98D7A5),
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // قرص ساعة Pixel Watch التفاعلي
+                            // قرص ساعة Pixel Watch
                             Box(
                                 modifier = Modifier
                                     .size(310.dp)
@@ -469,7 +485,7 @@ jobs:
                                     badgeColor = widgetColorList[selectedWidgetColorIndex].second,
                                     dateFormat = dateFormatChoice,
                                     displayStyle = displayStyle,
-                                    showIndices = showHourIndices,
+                                    indexStyle = selectedIndexStyle,
                                     widget1 = activeWidget1,
                                     widget2 = activeWidget2,
                                     dateOffset = dateOffsetDp,
@@ -773,22 +789,38 @@ jobs:
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // 7. قرص الساعة والعلامات
+                            // 7. قرص الساعة والعلامات (تختفي افتراضياً مع أنماط أخرى)
                             CardBox {
+                                Text("Index du cadran (علامات وأنماط القرص)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("اختر نمط العلامات أو اجعلها تختفي تماماً", fontSize = 11.sp, color = Color(0xFF98D7A5))
+                                Spacer(modifier = Modifier.height(10.dp))
+
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("Afficher les index des heures (علامات الساعات)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Switch(
-                                        checked = showHourIndices,
-                                        onCheckedChange = { showHourIndices = it },
-                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
-                                    )
+                                    DialIndexStyle.values().forEach { style ->
+                                        val isSelected = selectedIndexStyle == style
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                .border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.Transparent, RoundedCornerShape(12.dp))
+                                                .clickable { selectedIndexStyle = style }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                style.title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = if (isSelected) Color(0xFF0F381E) else Color.White
+                                            )
+                                        }
+                                    }
                                 }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Text("Couleur de fond du cadran (لون خلفية القرص)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -962,7 +994,7 @@ jobs:
             badgeColor: Color,
             dateFormat: String,
             displayStyle: String,
-            showIndices: Boolean,
+            indexStyle: DialIndexStyle,
             widget1: WidgetType?,
             widget2: WidgetType?,
             dateOffset: Offset,
@@ -993,22 +1025,65 @@ jobs:
             }
 
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (showIndices) {
+                // علامات الساعات على المحيط الخارجي حسب النمط المختار
+                if (indexStyle != DialIndexStyle.NONE) {
                     Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
                         val center = Offset(size.width / 2f, size.height / 2f)
                         val r = size.minDimension / 2f
 
-                        for (i in 0 until 12) {
-                            val rad = Math.toRadians((i * 30.0) - 90.0)
-                            val p1 = Offset((center.x + cos(rad) * r * 0.86f).toFloat(), (center.y + sin(rad) * r * 0.86f).toFloat())
-                            val p2 = Offset((center.x + cos(rad) * r * 0.98f).toFloat(), (center.y + sin(rad) * r * 0.98f).toFloat())
-                            drawLine(
-                                color = if (i % 3 == 0) Color.White else Color.White.copy(alpha = 0.4f),
-                                start = p1,
-                                end = p2,
-                                strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
-                                cap = StrokeCap.Round
-                            )
+                        when (indexStyle) {
+                            DialIndexStyle.NONE -> {}
+                            DialIndexStyle.CLASSIC -> {
+                                for (i in 0 until 12) {
+                                    val rad = Math.toRadians((i * 30.0) - 90.0)
+                                    val p1 = Offset((center.x + cos(rad) * r * 0.86f).toFloat(), (center.y + sin(rad) * r * 0.86f).toFloat())
+                                    val p2 = Offset((center.x + cos(rad) * r * 0.98f).toFloat(), (center.y + sin(rad) * r * 0.98f).toFloat())
+                                    drawLine(
+                                        color = if (i % 3 == 0) Color.White else Color.White.copy(alpha = 0.45f),
+                                        start = p1,
+                                        end = p2,
+                                        strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
+                                        cap = StrokeCap.Round
+                                    )
+                                }
+                            }
+                            DialIndexStyle.RED_DOTS -> {
+                                for (i in 0 until 12) {
+                                    val rad = Math.toRadians((i * 30.0) - 90.0)
+                                    val p1 = Offset((center.x + cos(rad) * r * 0.84f).toFloat(), (center.y + sin(rad) * r * 0.84f).toFloat())
+                                    val p2 = Offset((center.x + cos(rad) * r * 0.96f).toFloat(), (center.y + sin(rad) * r * 0.96f).toFloat())
+                                    drawLine(
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        start = p1,
+                                        end = p2,
+                                        strokeWidth = 2.dp.toPx(),
+                                        cap = StrokeCap.Round
+                                    )
+                                    val dotCenter = Offset((center.x + cos(rad) * r * 0.74f).toFloat(), (center.y + sin(rad) * r * 0.74f).toFloat())
+                                    drawCircle(Color(0xFFFF5252), radius = 3.5.dp.toPx(), center = dotCenter)
+                                }
+                            }
+                            DialIndexStyle.NUMBERS -> {
+                                for (i in 0 until 12) {
+                                    val rad = Math.toRadians((i * 30.0) - 90.0)
+                                    if (i % 3 == 0) {
+                                        val p1 = Offset((center.x + cos(rad) * r * 0.80f).toFloat(), (center.y + sin(rad) * r * 0.80f).toFloat())
+                                        val p2 = Offset((center.x + cos(rad) * r * 0.96f).toFloat(), (center.y + sin(rad) * r * 0.96f).toFloat())
+                                        drawLine(Color.White, p1, p2, strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round)
+                                    } else {
+                                        val dot = Offset((center.x + cos(rad) * r * 0.89f).toFloat(), (center.y + sin(rad) * r * 0.89f).toFloat())
+                                        drawCircle(Color.White.copy(alpha = 0.6f), radius = 2.5.dp.toPx(), center = dot)
+                                    }
+                                }
+                            }
+                            DialIndexStyle.MINIMAL_4 -> {
+                                for (i in listOf(0, 3, 6, 9)) {
+                                    val rad = Math.toRadians((i * 30.0) - 90.0)
+                                    val p1 = Offset((center.x + cos(rad) * r * 0.78f).toFloat(), (center.y + sin(rad) * r * 0.78f).toFloat())
+                                    val p2 = Offset((center.x + cos(rad) * r * 0.96f).toFloat(), (center.y + sin(rad) * r * 0.96f).toFloat())
+                                    drawLine(Color(0xFF98D7A5), p1, p2, strokeWidth = 3.5.dp.toPx(), cap = StrokeCap.Round)
+                                }
+                            }
                         }
                     }
                 }
@@ -1328,5 +1403,5 @@ jobs:
     - name: Upload Phone APK Only
       uses: actions/upload-artifact@v4
       with:
-        name: PhoneApp-V19-AnalogPro
+        name: PhoneApp-V21-PureAnalogPro
         path: app/build/outputs/apk/debug/*.apk
