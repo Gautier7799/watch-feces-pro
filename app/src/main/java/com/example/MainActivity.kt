@@ -5,12 +5,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,61 +23,54 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.example.components.WatchFaceImageDial
+import com.example.components.WatchFaceMinimalDigital
+import com.example.model.WatchColorTheme
+import com.example.model.WatchFaceType
+import com.example.model.WatchComplicationData
 import kotlinx.coroutines.delay
 import java.util.Calendar
-import kotlin.math.cos
-import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    background = Color(0xFF101412),
-                    surface = Color(0xFF1A221D),
-                    primary = Color(0xFF00E676)
+                    primary = Color(0xFF98D7A5),
+                    secondary = Color(0xFF2E694E),
+                    surface = Color(0xFF131814),
+                    background = Color(0xFF0C100D)
                 )
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF101412)
-                ) {
-                    WatchFaceConstructorScreen()
+                Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0C100D)) {
+                    AnalogMasterWatchFaceApp()
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WatchFaceConstructorScreen() {
+fun AnalogMasterWatchFaceApp() {
     var currentTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var watchStyle by remember { mutableStateOf(WatchStyle.ANALOG) }
-    var isEditing by remember { mutableStateOf(false) }
-
-    var primaryColor by remember { mutableStateOf(Color(0xFF00E676)) }
-    var accentColor by remember { mutableStateOf(Color(0xFFF44336)) }
-    var showSeconds by remember { mutableStateOf(true) }
-    var showBattery by remember { mutableStateOf(true) }
+    var selectedFaceType by remember { mutableStateOf(WatchFaceType.MINIMAL_DIGITAL) }
+    var selectedTheme by remember { mutableStateOf(WatchColorTheme.LEMONGRASS_MINT) }
+    var isAmbientMode by remember { mutableStateOf(false) }
+    var customImageUri by remember { mutableStateOf<Uri?>(null) }
+    
+    var showInstallDialog by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri -> selectedImageUri = uri }
+        onResult = { uri -> customImageUri = uri }
     )
 
     LaunchedEffect(Unit) {
@@ -95,431 +85,301 @@ fun WatchFaceConstructorScreen() {
     val minutes = calendar.get(Calendar.MINUTE)
     val seconds = calendar.get(Calendar.SECOND)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Watch Face Builder", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = Color.White
-                ),
-                actions = {
-                    IconButton(onClick = { isEditing = !isEditing }) {
-                        Icon(
-                            imageVector = if (isEditing) Icons.Default.Check else Icons.Default.Edit,
-                            contentDescription = "Edit Settings",
-                            tint = primaryColor
-                        )
-                    }
-                }
-            )
-        },
-        containerColor = Color.Transparent
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // Watch Face Preview container
-            Box(
-                modifier = Modifier
-                    .size(240.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black)
-                    .border(12.dp, Color(0xFF2A2A2A), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                if (selectedImageUri != null) {
-                    AsyncImage(
-                        model = selectedImageUri,
-                        contentDescription = "Background Image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+    val formattedHours = String.format("%02d", hours)
+    val formattedMinutes = String.format("%02d", minutes)
+    val formattedSeconds = String.format("%02d", seconds)
 
-                when (watchStyle) {
-                    WatchStyle.ANALOG -> {
-                        AnalogWatchFace(
-                            hours = hours,
-                            minutes = minutes,
-                            seconds = seconds,
-                            primaryColor = primaryColor,
-                            accentColor = accentColor,
-                            showSeconds = showSeconds
-                        )
-                    }
-                    WatchStyle.DIGITAL -> {
-                        DigitalWatchFace(
-                            hours = hours,
-                            minutes = minutes,
-                            seconds = seconds,
-                            primaryColor = primaryColor,
-                            accentColor = accentColor,
-                            showSeconds = showSeconds
-                        )
-                    }
-                }
+    val complications = WatchComplicationData()
 
-                if (showBattery) {
-                    BatteryIndicator(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 24.dp),
-                        color = primaryColor
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = isEditing,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp)
-                ) {
-                    Text(
-                        "Style Options",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        StyleToggleButton(
-                            label = "Analog",
-                            isSelected = watchStyle == WatchStyle.ANALOG,
-                            color = primaryColor,
-                            onClick = { watchStyle = WatchStyle.ANALOG }
-                        )
-                        StyleToggleButton(
-                            label = "Digital",
-                            isSelected = watchStyle == WatchStyle.DIGITAL,
-                            color = primaryColor,
-                            onClick = { watchStyle = WatchStyle.DIGITAL }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        "Background Image",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Button(
-                        onClick = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (selectedImageUri == null) "Select Image" else "Change Image")
-                    }
-
-                    if (selectedImageUri != null) {
-                        TextButton(
-                            onClick = { selectedImageUri = null },
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        ) {
-                            Text("Remove Image", color = Color(0xFFE57373))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        "Theme Colors",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        val colorOptions = listOf(Color(0xFF00E676), Color(0xFF29B6F6), Color(0xFFAB47BC), Color(0xFFFFA726), Color.White)
-                        colorOptions.forEach { color ->
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .border(
-                                        width = if (primaryColor == color) 3.dp else 0.dp,
-                                        color = if (primaryColor == color) Color.White else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { primaryColor = color }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        "Features",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        StateToggleButton(
-                            icon = Icons.Default.Timer,
-                            label = "Seconds",
-                            isActive = showSeconds,
-                            color = primaryColor,
-                            onClick = { showSeconds = !showSeconds }
-                        )
-                        StateToggleButton(
-                            icon = Icons.Default.BatteryFull,
-                            label = "Battery",
-                            isActive = showBattery,
-                            color = primaryColor,
-                            onClick = { showBattery = !showBattery }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AnalogWatchFace(
-    hours: Int,
-    minutes: Int,
-    seconds: Int,
-    primaryColor: Color,
-    accentColor: Color,
-    showSeconds: Boolean
-) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val center = Offset(size.width / 2, size.height / 2)
-        val radius = size.width / 2
-
-        for (i in 0..11) {
-            val angle = i * 30 * (Math.PI / 180)
-            val lineLength = if (i % 3 == 0) 15.dp.toPx() else 8.dp.toPx()
-            val strokeWidth = if (i % 3 == 0) 4f else 2f
-            
-            val startX = center.x + (radius - lineLength - 10.dp.toPx()) * cos(angle).toFloat()
-            val startY = center.y + (radius - lineLength - 10.dp.toPx()) * sin(angle).toFloat()
-            val endX = center.x + (radius - 10.dp.toPx()) * cos(angle).toFloat()
-            val endY = center.y + (radius - 10.dp.toPx()) * sin(angle).toFloat()
-            
-            drawLine(
-                color = Color.White.copy(alpha = 0.8f),
-                start = Offset(startX, startY),
-                end = Offset(endX, endY),
-                strokeWidth = strokeWidth,
-                cap = StrokeCap.Round
-            )
-        }
-
-        val hAngle = ((hours % 12 + minutes / 60f) * 30 - 90) * (Math.PI / 180)
-        drawLine(
-            color = Color.White,
-            start = center,
-            end = Offset(
-                x = center.x + (radius * 0.5f) * cos(hAngle).toFloat(),
-                y = center.y + (radius * 0.5f) * sin(hAngle).toFloat()
-            ),
-            strokeWidth = 10f,
-            cap = StrokeCap.Round
-        )
-
-        val mAngle = ((minutes + seconds / 60f) * 6 - 90) * (Math.PI / 180)
-        drawLine(
-            color = primaryColor,
-            start = center,
-            end = Offset(
-                x = center.x + (radius * 0.75f) * cos(mAngle).toFloat(),
-                y = center.y + (radius * 0.75f) * sin(mAngle).toFloat()
-            ),
-            strokeWidth = 6f,
-            cap = StrokeCap.Round
-        )
-
-        if (showSeconds) {
-            val sAngle = (seconds * 6 - 90) * (Math.PI / 180)
-            drawLine(
-                color = accentColor,
-                start = Offset(
-                    x = center.x - (radius * 0.15f) * cos(sAngle).toFloat(),
-                    y = center.y - (radius * 0.15f) * sin(sAngle).toFloat()
-                ),
-                end = Offset(
-                    x = center.x + (radius * 0.85f) * cos(sAngle).toFloat(),
-                    y = center.y + (radius * 0.85f) * sin(sAngle).toFloat()
-                ),
-                strokeWidth = 3f,
-                cap = StrokeCap.Round
-            )
-            drawCircle(
-                color = accentColor,
-                radius = 4.dp.toPx(),
-                center = center
-            )
-        } else {
-            drawCircle(
-                color = primaryColor,
-                radius = 6.dp.toPx(),
-                center = center
-            )
-        }
-    }
-}
-
-@Composable
-fun DigitalWatchFace(
-    hours: Int,
-    minutes: Int,
-    seconds: Int,
-    primaryColor: Color,
-    accentColor: Color,
-    showSeconds: Boolean
-) {
-    val timeString = String.format("%02d:%02d", hours, minutes)
-    val secString = String.format("%02d", seconds)
+    val hourAngle = ((hours % 12 + minutes / 60f) * 30f)
+    val minuteAngle = ((minutes + seconds / 60f) * 6f)
+    val secondAngle = (seconds * 6f)
 
     Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
+        Spacer(modifier = Modifier.height(48.dp))
+        
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { /* Menu */ }, modifier = Modifier.background(Color(0xFF1A241D), CircleShape)) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+            }
             Text(
-                text = timeString,
+                text = "Constructeur",
                 color = Color.White,
-                fontSize = 48.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black
             )
-            if (showSeconds) {
-                Text(
-                    text = secString,
-                    color = accentColor,
-                    fontSize = 24.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
-                )
+            IconButton(onClick = { /* Save */ }, modifier = Modifier.background(Color(0xFF1A241D), CircleShape)) {
+                Icon(Icons.Default.Save, contentDescription = "Save", tint = selectedTheme.primary)
             }
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Watch Face Preview Canvas
         Box(
             modifier = Modifier
-                .height(4.dp)
-                .width(60.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(primaryColor)
-        )
-    }
-}
+                .size(280.dp)
+                .clip(CircleShape)
+                .background(Color.Black)
+                .border(6.dp, Color(0xFF1E2820), CircleShape)
+                .testTag("watch_face_canvas"),
+            contentAlignment = Alignment.Center
+        ) {
+            when (selectedFaceType) {
+                WatchFaceType.MINIMAL_DIGITAL -> {
+                    WatchFaceMinimalDigital(
+                        formattedHours = formattedHours,
+                        formattedMinutes = formattedMinutes,
+                        formattedSeconds = formattedSeconds,
+                        formattedDate = complications.dateMonthDay,
+                        theme = selectedTheme,
+                        complications = complications,
+                        isAod = isAmbientMode
+                    )
+                }
+                else -> {
+                    WatchFaceImageDial(
+                        hourAngle = hourAngle,
+                        minuteAngle = minuteAngle,
+                        secondAngle = secondAngle,
+                        theme = selectedTheme,
+                        complications = complications,
+                        imageUri = customImageUri,
+                        isAod = isAmbientMode
+                    )
+                }
+            }
+        }
 
-@Composable
-fun BatteryIndicator(modifier: Modifier = Modifier, color: Color) {
-    Row(
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            Icons.Default.BatteryFull,
-            contentDescription = "Battery",
-            tint = color,
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            "84%",
-            color = Color.White,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Controls Section
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(32.dp),
+            color = Color(0xFF111713)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Button(
+                        onClick = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A241D), contentColor = Color.White),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Photo active", fontSize = 12.sp)
+                    }
+                    if (customImageUri != null) {
+                        IconButton(onClick = { customImageUri = null }, modifier = Modifier.background(Color(0xFF2D1E1E), CircleShape)) {
+                            Icon(Icons.Default.Close, contentDescription = "Remove photo", tint = Color(0xFFE57373))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    StateToggleButton(
+                        text = "Actif",
+                        icon = Icons.Default.WbSunny,
+                        isSelected = !isAmbientMode,
+                        selectedColor = selectedTheme.primary,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        isAmbientMode = false
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    StateToggleButton(
+                        text = "AOD",
+                        icon = Icons.Default.NightsStay,
+                        isSelected = isAmbientMode,
+                        selectedColor = selectedTheme.primary,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        isAmbientMode = true
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "أنواع العقارب",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val types = listOf(
+                        WatchFaceType.EVERYDAY_ANALOG to "Classic",
+                        WatchFaceType.DIVER_SPORT to "Sport",
+                        WatchFaceType.KINETIC_SPHERE to "Pixel_pill",
+                        WatchFaceType.MINIMAL_DIGITAL to "Minimal"
+                    )
+                    
+                    types.forEach { (type, label) ->
+                        StyleToggleButton(
+                            text = label,
+                            isSelected = selectedFaceType == type,
+                            selectedColor = selectedTheme.primary
+                        ) {
+                            selectedFaceType = type
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "ألوان السمات",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    WatchColorTheme.values().forEach { themeOption ->
+                        val isChosen = selectedTheme == themeOption
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(themeOption.primary)
+                                .border(
+                                    width = if (isChosen) 3.dp else 1.dp,
+                                    color = if (isChosen) Color.White else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable { selectedTheme = themeOption }
+                                .testTag("color_theme_${themeOption.name}"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isChosen) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = { showInstallDialog = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = selectedTheme.primary,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("installer_button")
+                ) {
+                    Icon(imageVector = Icons.Default.InstallMobile, contentDescription = "Install")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Installer",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
 fun StyleToggleButton(
-    label: String,
+    text: String,
     isSelected: Boolean,
-    color: Color,
+    selectedColor: Color,
     onClick: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (isSelected) color.copy(alpha = 0.2f) else Color(0xFF2A2A2A))
-            .border(
-                width = 2.dp,
-                color = if (isSelected) color else Color.Transparent,
-                shape = RoundedCornerShape(16.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 24.dp, vertical = 12.dp)
+    Surface(
+        color = if (isSelected) selectedColor else Color(0xFF1A241D),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.clickable(onClick = onClick)
     ) {
         Text(
-            text = label,
-            color = if (isSelected) color else Color.White,
-            fontWeight = FontWeight.Bold
+            text = text,
+            color = if (isSelected) Color.Black else Color.White,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
         )
     }
 }
 
 @Composable
 fun StateToggleButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    isActive: Boolean,
-    color: Color,
+    text: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    selectedColor: Color,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }
+    Surface(
+        color = if (isSelected) selectedColor else Color(0xFF1A241D),
+        shape = RoundedCornerShape(24.dp),
+        modifier = modifier.clickable(onClick = onClick)
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(if (isActive) color else Color(0xFF2A2A2A)),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = label,
-                tint = if (isActive) Color.Black else Color.White,
-                modifier = Modifier.size(24.dp)
+                contentDescription = null,
+                tint = if (isSelected) Color.Black else Color.White,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = text,
+                color = if (isSelected) Color.Black else Color.White,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 14.sp
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = label,
-            color = if (isActive) color else Color.Gray,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
-        )
     }
-}
-
-enum class WatchStyle {
-    ANALOG, DIGITAL
 }
