@@ -1,6 +1,18 @@
-// build.gradle.kts (في المجلد الرئيسي لمستودع GitHub)
-plugins {
-    id("com.android.application") version "9.1.1" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
-    id("com.google.devtools.ksp") version "2.3.5" apply false
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "PixelWatchPro"
+include(":app")
