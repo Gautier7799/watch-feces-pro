@@ -24,7 +24,7 @@ jobs:
       with:
         gradle-version: '8.10'
 
-    - name: Clean & Build V18 Final Touch App
+    - name: Clean & Build V19 Analog Pro App
       run: |
         rm -rf app/src/main/java
         rm -rf wear/src/main/java 2>/dev/null || true
@@ -75,11 +75,11 @@ jobs:
             compileSdk = 35
 
             defaultConfig {
-                applicationId = "com.aistudio.pixelwatch.constructor"
+                applicationId = "com.aistudio.pixelwatch.analog"
                 minSdk = 26
                 targetSdk = 35
-                versionCode = 18
-                versionName = "18.0"
+                versionCode = 19
+                versionName = "19.0"
             }
 
             buildFeatures {
@@ -169,12 +169,14 @@ jobs:
         import androidx.compose.ui.graphics.Color
         import androidx.compose.ui.graphics.Path
         import androidx.compose.ui.graphics.StrokeCap
+        import androidx.compose.ui.graphics.StrokeJoin
+        import androidx.compose.ui.graphics.drawscope.DrawScope
+        import androidx.compose.ui.graphics.drawscope.Fill
         import androidx.compose.ui.graphics.drawscope.Stroke
         import androidx.compose.ui.input.pointer.pointerInput
         import androidx.compose.ui.layout.ContentScale
         import androidx.compose.ui.platform.LocalContext
         import androidx.compose.ui.platform.LocalDensity
-        import androidx.compose.ui.text.font.FontFamily
         import androidx.compose.ui.text.font.FontWeight
         import androidx.compose.ui.unit.IntOffset
         import androidx.compose.ui.unit.dp
@@ -200,7 +202,7 @@ jobs:
                         )
                     ) {
                         Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF0C100D)) {
-                            MasterWatchFaceApp()
+                            AnalogMasterWatchFaceApp()
                         }
                     }
                 }
@@ -210,78 +212,95 @@ jobs:
         enum class WidgetType(val title: String, val defaultText: String) {
             BATTERY("Batterie", "85%"),
             STEPS("Pas", "8,532"),
-            HEART_RATE("Fréquence cardiaque", "72 bpm"),
+            HEART_RATE("Fréquence", "72 bpm"),
             WEATHER("Météo", "24°C"),
-            CALENDAR("Événement", "Réunion 14h")
+            CALENDAR("Événement", "14:00")
+        }
+
+        enum class HandStyle(val label: String) {
+            CLASSIC("Classique (عادية)"),
+            SPORT("Sport (رياضية)"),
+            PIXEL_PILL("Pixel Pill (بكسل)"),
+            MINIMAL("Minimal (بسيطة)")
         }
 
         @OptIn(ExperimentalMaterial3Api::class)
         @Composable
-        fun MasterWatchFaceApp() {
+        fun AnalogMasterWatchFaceApp() {
             val context = LocalContext.current
             val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
             val scope = rememberCoroutineScope()
             var currentScreen by remember { mutableStateOf("Constructeur") }
 
-            var isDigital by remember { mutableStateOf(false) }
             var isAod by remember { mutableStateOf(false) }
-
-            // منع تداخل سكرول الصفحة أثناء السحب بالأصبع
             var isDraggingWidget by remember { mutableStateOf(false) }
 
-            // إعدادات النصوص والخطوط
-            var fontSizeChoice by remember { mutableStateOf(100) }
-            var fontWeightChoice by remember { mutableStateOf(FontWeight.Normal) }
-            var selectedFontFamily by remember { mutableStateOf("System") }
+            // 1. ألوان وأنواع العقارب
+            var selectedHandStyle by remember { mutableStateOf(HandStyle.CLASSIC) }
 
-            // مفاتيح الثواني و AM/PM
-            var showSeconds by remember { mutableStateOf(false) }
-            var showAmPm by remember { mutableStateOf(false) }
+            val handColorPalettes = listOf(
+                Pair("Blanc & Corail", Pair(Color.White, Color(0xFFFF7043))),
+                Pair("Craie & Menthe", Pair(Color(0xFFE8EAED), Color(0xFF98D7A5))),
+                Pair("Jaune & Noir", Pair(Color(0xFFFFEE58), Color(0xFFFF5252))),
+                Pair("Bleu Ciel & Rose", Pair(Color(0xFF80D8FF), Color(0xFFFF4081))),
+                Pair("Or & Rouge", Pair(Color(0xFFFFD54F), Color(0xFFD50000)))
+            )
+            var selectedHandColorIndex by remember { mutableStateOf(0) }
 
-            // صورة الخلفية والألوان
+            // 2. ألوان الودجات
+            val widgetColorList = listOf(
+                Pair("Menthe Pixel", Color(0xFF98D7A5)),
+                Pair("Blanc Pur", Color.White),
+                Pair("Pêche Corail", Color(0xFFFFAB91)),
+                Pair("Ambre Doré", Color(0xFFFFE082)),
+                Pair("Lavande", Color(0xFFCE93D8)),
+                Pair("Gris Métal", Color(0xFFCFD8DC))
+            )
+            var selectedWidgetColorIndex by remember { mutableStateOf(0) }
+
+            // 3. أشكال Material You المعتمدة من قوقل
+            var selectedBadgeShape by remember { mutableStateOf(1) } // Flower
+            var badgeOpacity by remember { mutableStateOf(0.45f) }
+
+            // 4. إدارة الودجات
+            var activeWidget1 by remember { mutableStateOf<WidgetType?>(WidgetType.BATTERY) }
+            var activeWidget2 by remember { mutableStateOf<WidgetType?>(WidgetType.STEPS) }
+            val activeWidgetsCount = listOfNotNull(activeWidget1, activeWidget2).size
+            var showWidgetPickerSheet by remember { mutableStateOf(false) }
+            var displayStyle by remember { mutableStateOf("Arc") }
+
+            // 5. صيغة التاريخ
+            var dateFormatChoice by remember { mutableStateOf("Mon 5") }
+
+            // 6. خلفية وقرص الساعة
             var selectedBgImageUri by remember { mutableStateOf<Uri?>(null) }
             val photoPickerLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.GetContent()
             ) { uri: Uri? -> selectedBgImageUri = uri }
 
-            val colorsList = listOf(
+            val dialBackgroundColors = listOf(
                 Color(0xFF0C100D),
-                Color(0xFFFFFFFF),
-                Color(0xFF1E2620),
-                Color(0xFF2E694E),
-                Color(0xFFFF7043)
+                Color(0xFF141C16),
+                Color(0xFF1F2833),
+                Color(0xFF2C1B18),
+                Color(0xFFFFFFFF)
             )
-            var selectedColorIndex by remember { mutableStateOf(0) }
+            var selectedDialColorIndex by remember { mutableStateOf(0) }
+            var showHourIndices by remember { mutableStateOf(true) }
 
-            // صيغة التاريخ
-            var dateFormatChoice by remember { mutableStateOf("5 Feb") }
-
-            // أشكال المؤشرات والشفافية
-            var selectedBadgeShape by remember { mutableStateOf(0) }
-            var badgeOpacity by remember { mutableStateOf(0.46f) }
-
-            // إدارة الودجات
-            var activeWidget1 by remember { mutableStateOf<WidgetType?>(WidgetType.BATTERY) }
-            var activeWidget2 by remember { mutableStateOf<WidgetType?>(WidgetType.STEPS) }
-            val activeWidgetsCount = listOfNotNull(activeWidget1, activeWidget2).size
-            var showWidgetPickerSheet by remember { mutableStateOf(false) }
-            var displayStyle by remember { mutableStateOf("Icon + %") }
-
-            // نوافذ الحفظ والتثبيت
             var showSaveDialog by remember { mutableStateOf(false) }
             var showInstallDialog by remember { mutableStateOf(false) }
             var isInstalling by remember { mutableStateOf(false) }
 
-            // إحداثيات السحب باللمس بوحدة الـ DP الحقيقية لتغطي كامل قطر الساعة بدون قيد
             var dateOffsetDp by remember { mutableStateOf(Offset(0f, -80f)) }
-            var widget1OffsetDp by remember { mutableStateOf(Offset(-75f, 0f)) }
-            var widget2OffsetDp by remember { mutableStateOf(Offset(0f, 85f)) }
+            var widget1OffsetDp by remember { mutableStateOf(Offset(75f, 0f)) }
+            var widget2OffsetDp by remember { mutableStateOf(Offset(0f, 75f)) }
 
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
                     ModalDrawerSheet(
-                        modifier = Modifier.width(310.dp),
+                        modifier = Modifier.width(300.dp),
                         drawerContainerColor = Color(0xFF121914),
                         drawerContentColor = Color.White
                     ) {
@@ -291,19 +310,22 @@ jobs:
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
-                                modifier = Modifier.size(50.dp).clip(CircleShape).background(Color(0xFF0F2027)),
+                                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF0F2027)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("W", color = Color(0xFF38EF7D), fontSize = 26.sp, fontWeight = FontWeight.Black)
+                                Text("P", color = Color(0xFF98D7A5), fontSize = 24.sp, fontWeight = FontWeight.Black)
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text("Watch Face Manager", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text("Pixel Analog Pro", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Éditeur de cadran", fontSize = 12.sp, color = Color(0xFF98D7A5))
+                            }
                         }
                         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFF243026))
 
                         val menuItems = listOf(
-                            Pair("Accueil", Icons.Default.Home),
                             Pair("Constructeur", Icons.Default.DashboardCustomize),
+                            Pair("Accueil", Icons.Default.Home),
                             Pair("Vitrine", Icons.Default.Storefront),
                             Pair("Favoris", Icons.Default.FavoriteBorder),
                             Pair("Top", Icons.Default.EmojiEvents),
@@ -337,14 +359,22 @@ jobs:
                 Scaffold(
                     topBar = {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                 Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White, modifier = Modifier.size(28.dp))
                             }
-                            Text(currentScreen, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(
+                                currentScreen,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                             IconButton(onClick = { showSaveDialog = true }) {
                                 Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5), modifier = Modifier.size(28.dp))
                             }
@@ -360,90 +390,63 @@ jobs:
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // أزرار التحكم العلوية
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(onClick = { photoPickerLauncher.launch("image/*") }) {
-                                    Icon(Icons.Default.FolderOpen, contentDescription = "Open", tint = Color(0xFF98D7A5), modifier = Modifier.size(30.dp))
-                                }
-
                                 Row(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(36.dp))
+                                        .clip(RoundedCornerShape(20.dp))
                                         .background(Color(0xFF161E18))
-                                        .padding(4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        .clickable { photoPickerLauncher.launch("image/*") }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(30.dp))
-                                            .background(if (isDigital) Color(0xFF98D7A5) else Color(0xFF1E2820))
-                                            .clickable { isDigital = true }
-                                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AccessTime,
-                                            contentDescription = null,
-                                            tint = if (isDigital) Color(0xFF0F381E) else Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            "Numérique",
-                                            color = if (isDigital) Color(0xFF0F381E) else Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                    }
+                                    Icon(Icons.Default.FolderOpen, contentDescription = "Open", tint = Color(0xFF98D7A5), modifier = Modifier.size(22.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(if (selectedBgImageUri != null) "Photo active" else "Image fond", fontSize = 12.sp, color = Color.White)
+                                }
 
-                                    Row(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(30.dp))
-                                            .background(if (!isDigital) Color(0xFF98D7A5) else Color(0xFF1E2820))
-                                            .clickable { isDigital = false }
-                                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Schedule,
-                                            contentDescription = null,
-                                            tint = if (!isDigital) Color(0xFF0F381E) else Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(Color(0xFF2E694E))
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = Color(0xFF98D7A5), modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            "Analogique",
-                                            color = if (!isDigital) Color(0xFF0F381E) else Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
+                                        Text("Analogique Pro", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 }
 
-                                IconButton(onClick = { showSaveDialog = true }) {
-                                    Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5), modifier = Modifier.size(30.dp))
+                                if (selectedBgImageUri != null) {
+                                    IconButton(onClick = { selectedBgImageUri = null }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Remove photo", tint = Color(0xFFFF8A80), modifier = Modifier.size(22.dp))
+                                    }
+                                } else {
+                                    IconButton(onClick = { showSaveDialog = true }) {
+                                        Icon(Icons.Default.Save, contentDescription = "Save", tint = Color(0xFF98D7A5), modifier = Modifier.size(24.dp))
+                                    }
                                 }
                             }
 
                             Text(
-                                "🖐️ المس أي أيقونة (التاريخ / البطارية / الخطوات) واسحبها بحرية لتغيير مكانها",
+                                "🖐️ اسحب أي أيقونة (التاريخ / البطارية / الخطوات) لوضعها في أي مكان تريده",
                                 fontSize = 11.sp,
                                 color = Color(0xFF98D7A5),
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
 
-                            // قرص شاشة الساعة التفاعلي بالكامل
+                            // قرص ساعة Pixel Watch التفاعلي
                             Box(
                                 modifier = Modifier
                                     .size(310.dp)
                                     .clip(CircleShape)
-                                    .background(colorsList[selectedColorIndex])
+                                    .background(dialBackgroundColors[selectedDialColorIndex])
                                     .border(2.dp, Color(0xFF263228), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -452,55 +455,36 @@ jobs:
                                         model = selectedBgImageUri,
                                         contentDescription = "Custom Bg",
                                         modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                        alpha = if (isAod) 0.35f else 1f,
                                         contentScale = ContentScale.Crop
                                     )
                                 }
 
-                                if (isDigital) {
-                                    DigitalFaceScreen(
-                                        fontSize = fontSizeChoice,
-                                        fontWeight = fontWeightChoice,
-                                        fontFamily = selectedFontFamily,
-                                        showSeconds = showSeconds,
-                                        showAmPm = showAmPm,
-                                        dateFormat = dateFormatChoice,
-                                        badgeShape = selectedBadgeShape,
-                                        badgeOpacity = badgeOpacity,
-                                        displayStyle = displayStyle,
-                                        widget1 = activeWidget1,
-                                        widget2 = activeWidget2,
-                                        dateOffset = dateOffsetDp,
-                                        onDateOffsetChange = { dateOffsetDp = it },
-                                        widget1Offset = widget1OffsetDp,
-                                        onWidget1OffsetChange = { widget1OffsetDp = it },
-                                        widget2Offset = widget2OffsetDp,
-                                        onWidget2OffsetChange = { widget2OffsetDp = it },
-                                        onDragStateChange = { isDraggingWidget = it }
-                                    )
-                                } else {
-                                    AnalogFaceScreen(
-                                        isAod = isAod,
-                                        dateFormat = dateFormatChoice,
-                                        badgeShape = selectedBadgeShape,
-                                        badgeOpacity = badgeOpacity,
-                                        displayStyle = displayStyle,
-                                        showSeconds = showSeconds,
-                                        widget1 = activeWidget1,
-                                        widget2 = activeWidget2,
-                                        dateOffset = dateOffsetDp,
-                                        onDateOffsetChange = { dateOffsetDp = it },
-                                        widget1Offset = widget1OffsetDp,
-                                        onWidget1OffsetChange = { widget1OffsetDp = it },
-                                        widget2Offset = widget2OffsetDp,
-                                        onWidget2OffsetChange = { widget2OffsetDp = it },
-                                        onDragStateChange = { isDraggingWidget = it }
-                                    )
-                                }
+                                AnalogEngineScreen(
+                                    isAod = isAod,
+                                    handStyle = selectedHandStyle,
+                                    handColors = handColorPalettes[selectedHandColorIndex].second,
+                                    badgeShape = selectedBadgeShape,
+                                    badgeOpacity = badgeOpacity,
+                                    badgeColor = widgetColorList[selectedWidgetColorIndex].second,
+                                    dateFormat = dateFormatChoice,
+                                    displayStyle = displayStyle,
+                                    showIndices = showHourIndices,
+                                    widget1 = activeWidget1,
+                                    widget2 = activeWidget2,
+                                    dateOffset = dateOffsetDp,
+                                    onDateOffsetChange = { dateOffsetDp = it },
+                                    widget1Offset = widget1OffsetDp,
+                                    onWidget1OffsetChange = { widget1OffsetDp = it },
+                                    widget2Offset = widget2OffsetDp,
+                                    onWidget2OffsetChange = { widget2OffsetDp = it },
+                                    onDragStateChange = { isDraggingWidget = it }
+                                )
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // أزرار Actif و AOD وإعادة التعيين
+                            // زرا Actif و AOD
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -515,7 +499,7 @@ jobs:
                                         contentColor = if (!isAod) Color(0xFF0F381E) else Color.White
                                     )
                                 ) {
-                                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Actif", fontWeight = FontWeight.Bold)
                                 }
@@ -529,16 +513,16 @@ jobs:
                                         contentColor = if (isAod) Color(0xFF0F381E) else Color.White
                                     )
                                 ) {
-                                    Icon(Icons.Default.BrightnessAuto, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.NightlightRound, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("AOD", fontWeight = FontWeight.Bold)
+                                    Text("AOD (توفير طاقة)", fontWeight = FontWeight.Bold)
                                 }
 
                                 IconButton(
                                     onClick = {
                                         dateOffsetDp = Offset(0f, -80f)
-                                        widget1OffsetDp = Offset(-75f, 0f)
-                                        widget2OffsetDp = Offset(0f, 85f)
+                                        widget1OffsetDp = Offset(75f, 0f)
+                                        widget2OffsetDp = Offset(0f, 75f)
                                         Toast.makeText(context, "Positions réinitialisées (تمت استعادة المواضع)", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF1B241D))
@@ -549,180 +533,28 @@ jobs:
 
                             Spacer(modifier = Modifier.height(14.dp))
 
-                            // 1. حجم الخط (Taille de police)
+                            // 1. أنواع العقارب
                             CardBox {
-                                Text("Taille de police (حجم الخط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("2. Types d'aiguilles (أنواع العقارب)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf(60, 80, 100, 120, 140).forEach { size ->
-                                        val isSelected = fontSizeChoice == size
+                                    HandStyle.values().forEach { style ->
+                                        val isSelected = selectedHandStyle == style
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(44.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { fontSizeChoice = size },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text("$size", fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF0F381E) else Color.White, fontSize = 13.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 2. نوع الخط وسماكته
-                            CardBox {
-                                Text("Police (الخط)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("System", "Google Sans Flex", "Roboto").forEach { font ->
-                                        val isSelected = selectedFontFamily == font
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { selectedFontFamily = font },
-                                            label = { Text(font, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = Color(0xFF98D7A5),
-                                                selectedLabelColor = Color(0xFF0F381E),
-                                                containerColor = Color(0xFF18221A),
-                                                labelColor = Color.White
-                                            )
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Text("Épaisseur de police (السماكة)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf(
-                                        Pair("Thin", FontWeight.Thin),
-                                        Pair("Light", FontWeight.Light),
-                                        Pair("Normal", FontWeight.Normal),
-                                        Pair("Bold", FontWeight.Bold)
-                                    ).forEach { (label, weight) ->
-                                        val isSelected = fontWeightChoice == weight
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(40.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { fontWeightChoice = weight },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = if (isSelected) Color(0xFF0F381E) else Color.White)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 3. مفاتيح الثواني و AM/PM
-                            CardBox {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Afficher les secondes (إظهار الثواني)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Switch(
-                                        checked = showSeconds,
-                                        onCheckedChange = { showSeconds = it },
-                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Afficher AM/PM (إظهار صباحاً/مساءً)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Switch(
-                                        checked = showAmPm,
-                                        onCheckedChange = { showAmPm = it },
-                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 4. تغيير صورة الخلفية والألوان
-                            CardBox {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(Color(0xFF18221A))
-                                        .clickable { photoPickerLauncher.launch("image/*") }
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFF98D7A5))
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Text(
-                                            if (selectedBgImageUri != null) "Image personnalisée (محددة)" else "Image de fond / Solid Color",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp
-                                        )
-                                    }
-                                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.LightGray)
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text("Couleur (الألوان الأساسية)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    colorsList.forEachIndexed { index, color ->
-                                        val isSelected = selectedColorIndex == index
-                                        Box(
-                                            modifier = Modifier
-                                                .size(44.dp)
-                                                .clip(CircleShape)
-                                                .background(color)
-                                                .clickable {
-                                                    selectedColorIndex = index
-                                                    selectedBgImageUri = null
-                                                }
-                                                .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color(0xFF98D7A5) else Color.DarkGray, CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (isSelected) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = if (index == 1) Color.Black else Color.White, modifier = Modifier.size(18.dp))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // 5. صيغة التاريخ (Date)
-                            CardBox {
-                                Text("Date (صيغة التاريخ)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("-", "5", "5 Feb", "Mon 5", "Mon").forEach { format ->
-                                        val isSelected = dateFormatChoice == format
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(42.dp)
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { dateFormatChoice = format },
+                                                .clickable { selectedHandStyle = style },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(format, fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF0F381E) else Color.White, fontSize = 12.sp)
+                                            Text(
+                                                style.name.lowercase().capitalize(),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = if (isSelected) Color(0xFF0F381E) else Color.White
+                                            )
                                         }
                                     }
                                 }
@@ -730,25 +562,74 @@ jobs:
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // 6. أشكال Material You للمؤشرات والشفافية
+                            // 2. ألوان العقارب
                             CardBox {
-                                Text("Forme du fond (أشكال مؤشرات Material You)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("1. Couleurs des aiguilles (ألوان العقارب)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    listOf("Squircle", "Flower", "Clover", "Cookie", "Sunburst", "Dome", "Donut").forEachIndexed { index, _ ->
-                                        val isSelected = selectedBadgeShape == index
-                                        Box(
+                                    handColorPalettes.forEachIndexed { index, (name, pair) ->
+                                        val isSelected = selectedHandColorIndex == index
+                                        Row(
                                             modifier = Modifier
-                                                .size(50.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
-                                                .clickable { selectedBadgeShape = index },
-                                            contentAlignment = Alignment.Center
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(if (isSelected) Color(0xFF2E694E) else Color(0xFF18221A))
+                                                .border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color(0xFF98D7A5) else Color.DarkGray, RoundedCornerShape(16.dp))
+                                                .clickable { selectedHandColorIndex = index }
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            ShapeRenderer(shapeIndex = index, color = if (isSelected) Color(0xFF0F381E) else Color.White)
+                                            Box(modifier = Modifier.size(16.dp).clip(CircleShape).background(pair.first))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Box(modifier = Modifier.size(16.dp).clip(CircleShape).background(pair.second))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(name, color = Color.White, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 3. أشكال Material You المعتمدة من قوقل
+                            CardBox {
+                                Text("3. Formes Material You (الأشكال الأصلية للمؤشرات)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Text("شكل الأيقونة يتغير فوراً على الساعة بالشكل الهندسي المختار", fontSize = 11.sp, color = Color(0xFF98D7A5))
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    val shapeNames = listOf("Squircle", "Flower (زهرة)", "Clover (برسيم)", "Cookie (كعكة)", "Hexagon (سداسي)", "Dome (قبة)", "Pill (كبسولة)")
+                                    shapeNames.forEachIndexed { index, name ->
+                                        val isSelected = selectedBadgeShape == index
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.clickable { selectedBadgeShape = index }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(54.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                    .border(if (isSelected) 2.dp else 1.dp, if (isSelected) Color.White else Color.Transparent, RoundedCornerShape(14.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Box(modifier = Modifier.size(38.dp)) {
+                                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                                        drawMaterialYouShapeGeometry(
+                                                            shapeIndex = index,
+                                                            color = if (isSelected) Color(0xFF0F381E) else Color.White,
+                                                            style = Fill
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(name.split(" ")[0], fontSize = 10.sp, color = if (isSelected) Color(0xFF98D7A5) else Color.LightGray)
                                         }
                                     }
                                 }
@@ -761,14 +642,42 @@ jobs:
                                 Slider(
                                     value = badgeOpacity,
                                     onValueChange = { badgeOpacity = it },
-                                    valueRange = 0f..1f,
+                                    valueRange = 0.1f..1f,
                                     colors = SliderDefaults.colors(thumbColor = Color(0xFF98D7A5), activeTrackColor = Color(0xFF98D7A5))
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // 7. قسم الودجات الشامل والتفاعلي بالكامل (Widgets)
+                            // 4. ألوان الودجات
+                            CardBox {
+                                Text("Couleurs des widgets (ألوان الودجات)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    widgetColorList.forEachIndexed { index, (name, color) ->
+                                        val isSelected = selectedWidgetColorIndex == index
+                                        Row(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (isSelected) Color(0xFF2E694E) else Color(0xFF18221A))
+                                                .clickable { selectedWidgetColorIndex = index }
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(modifier = Modifier.size(16.dp).clip(CircleShape).background(color))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(name, color = Color.White, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 5. إدارة الودجات وأنماط العرض
                             CardBox {
                                 Text("Widgets (إدارة الودجات)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(10.dp))
@@ -784,7 +693,6 @@ jobs:
                                     Text("Ajouter un widget ($activeWidgetsCount/2)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 }
 
-                                // إظهار الودجات النشطة وإمكانية حذفها أو تغييرها
                                 if (activeWidget1 != null || activeWidget2 != null) {
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -817,7 +725,7 @@ jobs:
                                 Text("Style d'affichage (أسلوب العرض)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.White)
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("Icon + %", "Arc", "Icon +", "Text").forEach { style ->
+                                    listOf("Arc", "Icon + %", "Icon +", "Text").forEach { style ->
                                         val isSelected = displayStyle == style
                                         Box(
                                             modifier = Modifier
@@ -839,10 +747,73 @@ jobs:
                                 }
                             }
 
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 6. صيغة التاريخ
+                            CardBox {
+                                Text("Date (صيغة التاريخ)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf("-", "5", "5 Feb", "Mon 5", "Mon").forEach { format ->
+                                        val isSelected = dateFormatChoice == format
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(42.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (isSelected) Color(0xFF98D7A5) else Color(0xFF18221A))
+                                                .clickable { dateFormatChoice = format },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(format, fontWeight = FontWeight.Bold, color = if (isSelected) Color(0xFF0F381E) else Color.White, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // 7. قرص الساعة والعلامات
+                            CardBox {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Afficher les index des heures (علامات الساعات)", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    Switch(
+                                        checked = showHourIndices,
+                                        onCheckedChange = { showHourIndices = it },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF98D7A5), checkedTrackColor = Color(0xFF2E694E))
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text("Couleur de fond du cadran (لون خلفية القرص)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    dialBackgroundColors.forEachIndexed { index, color ->
+                                        val isSelected = selectedDialColorIndex == index
+                                        Box(
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .clip(CircleShape)
+                                                .background(color)
+                                                .clickable { selectedDialColorIndex = index }
+                                                .border(if (isSelected) 3.dp else 1.dp, if (isSelected) Color(0xFF98D7A5) else Color.DarkGray, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = if (index == 4) Color.Black else Color.White, modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(100.dp))
                         }
 
-                        // زر التثبيت العائم
                         FloatingActionButton(
                             onClick = {
                                 showInstallDialog = true
@@ -866,7 +837,6 @@ jobs:
                 }
             }
 
-            // نافذة اختيار الودجات عند الضغط على زر Ajouter un widget
             if (showWidgetPickerSheet) {
                 AlertDialog(
                     onDismissRequest = { showWidgetPickerSheet = false },
@@ -908,12 +878,11 @@ jobs:
                 )
             }
 
-            // نافذة الحفظ
             if (showSaveDialog) {
                 AlertDialog(
                     onDismissRequest = { showSaveDialog = false },
-                    title = { Text("Sauvegarde effectuée", fontWeight = FontWeight.Bold, color = Color.White) },
-                    text = { Text("Tous vos réglages, styles et emplacements d'icônes ont été enregistrés avec succès.", color = Color(0xFFC2C8BE)) },
+                    title = { Text("Configuration enregistrée", fontWeight = FontWeight.Bold, color = Color.White) },
+                    text = { Text("Toutes les personnalisations d'aiguilles, couleurs et formes Material You ont été sauvegardées.", color = Color(0xFFC2C8BE)) },
                     confirmButton = {
                         Button(
                             onClick = { showSaveDialog = false },
@@ -926,10 +895,9 @@ jobs:
                 )
             }
 
-            // نافذة التثبيت
             if (showInstallDialog) {
                 LaunchedEffect(Unit) {
-                    delay(2500)
+                    delay(2400)
                     isInstalling = false
                 }
 
@@ -939,7 +907,7 @@ jobs:
                     },
                     title = {
                         Text(
-                            if (isInstalling) "Transmission vers la montre..." else "Installation réussie !",
+                            if (isInstalling) "Transmission vers Pixel Watch..." else "Cadran installé !",
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
@@ -950,11 +918,11 @@ jobs:
                                 Spacer(modifier = Modifier.height(10.dp))
                                 CircularProgressIndicator(color = Color(0xFF98D7A5))
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Application du cadran sur votre Pixel Watch...", color = Color.LightGray, fontSize = 13.sp)
+                                Text("Synchronisation du cadran analogique avec votre montre...", color = Color.LightGray, fontSize = 13.sp)
                             } else {
                                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF98D7A5), modifier = Modifier.size(52.dp))
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text("Le cadran a été appliqué avec succès sur votre montre !", color = Color.White, fontSize = 14.sp)
+                                Text("Le cadran analogique personnalisé a été appliqué avec succès !", color = Color.White, fontSize = 14.sp)
                             }
                         }
                     },
@@ -985,115 +953,16 @@ jobs:
         }
 
         @Composable
-        fun DigitalFaceScreen(
-            fontSize: Int,
-            fontWeight: FontWeight,
-            fontFamily: String,
-            showSeconds: Boolean,
-            showAmPm: Boolean,
-            dateFormat: String,
-            badgeShape: Int,
-            badgeOpacity: Float,
-            displayStyle: String,
-            widget1: WidgetType?,
-            widget2: WidgetType?,
-            dateOffset: Offset,
-            onDateOffsetChange: (Offset) -> Unit,
-            widget1Offset: Offset,
-            onWidget1OffsetChange: (Offset) -> Unit,
-            widget2Offset: Offset,
-            onWidget2OffsetChange: (Offset) -> Unit,
-            onDragStateChange: (Boolean) -> Unit
-        ) {
-            var timeString by remember { mutableStateOf("10:08") }
-            var secString by remember { mutableStateOf("00") }
-            var amPmString by remember { mutableStateOf("AM") }
-
-            LaunchedEffect(Unit) {
-                while (true) {
-                    val cal = Calendar.getInstance()
-                    timeString = String.format("%02d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
-                    secString = String.format("%02d", cal.get(Calendar.SECOND))
-                    amPmString = if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM"
-                    delay(500)
-                }
-            }
-
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                // التاريخ قابل للسحب الحر
-                if (dateFormat != "-") {
-                    UniversalDraggableItem(
-                        offsetDp = dateOffset,
-                        onOffsetChange = onDateOffsetChange,
-                        badgeShape = badgeShape,
-                        opacity = badgeOpacity,
-                        onDragStateChange = onDragStateChange
-                    ) {
-                        Text(dateFormat, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                // الوقت الرقمي
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    Text(
-                        timeString,
-                        color = Color.White,
-                        fontSize = (fontSize * 0.52f).sp,
-                        fontWeight = fontWeight,
-                        fontFamily = when (fontFamily) {
-                            "Roboto" -> FontFamily.SansSerif
-                            else -> FontFamily.Default
-                        }
-                    )
-
-                    if (showSeconds || showAmPm) {
-                        Column(modifier = Modifier.padding(start = 4.dp)) {
-                            if (showSeconds) Text(secString, color = Color(0xFF98D7A5), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            if (showAmPm) Text(amPmString, color = Color.LightGray, fontSize = 11.sp)
-                        }
-                    }
-                }
-
-                // الودجة الأولى
-                if (widget1 != null) {
-                    UniversalDraggableItem(
-                        offsetDp = widget1Offset,
-                        onOffsetChange = onWidget1OffsetChange,
-                        badgeShape = badgeShape,
-                        opacity = badgeOpacity,
-                        onDragStateChange = onDragStateChange
-                    ) {
-                        RenderWidgetContent(widget1, displayStyle)
-                    }
-                }
-
-                // الودجة الثانية
-                if (widget2 != null) {
-                    UniversalDraggableItem(
-                        offsetDp = widget2Offset,
-                        onOffsetChange = onWidget2OffsetChange,
-                        badgeShape = badgeShape,
-                        opacity = badgeOpacity,
-                        onDragStateChange = onDragStateChange
-                    ) {
-                        RenderWidgetContent(widget2, displayStyle)
-                    }
-                }
-            }
-        }
-
-        @Composable
-        fun AnalogFaceScreen(
+        fun AnalogEngineScreen(
             isAod: Boolean,
-            dateFormat: String,
+            handStyle: HandStyle,
+            handColors: Pair<Color, Color>,
             badgeShape: Int,
             badgeOpacity: Float,
+            badgeColor: Color,
+            dateFormat: String,
             displayStyle: String,
-            showSeconds: Boolean,
+            showIndices: Boolean,
             widget1: WidgetType?,
             widget2: WidgetType?,
             dateOffset: Offset,
@@ -1124,138 +993,141 @@ jobs:
             }
 
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                // رسم مؤشرات وعقارب الساعة
-                Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
-                    val center = Offset(size.width / 2f, size.height / 2f)
-                    val r = size.minDimension / 2f
+                if (showIndices) {
+                    Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
+                        val center = Offset(size.width / 2f, size.height / 2f)
+                        val r = size.minDimension / 2f
 
-                    for (i in 0 until 12) {
-                        val rad = Math.toRadians((i * 30.0) - 90.0)
-                        val p1 = Offset((center.x + cos(rad) * r * 0.84f).toFloat(), (center.y + sin(rad) * r * 0.84f).toFloat())
-                        val p2 = Offset((center.x + cos(rad) * r * 0.98f).toFloat(), (center.y + sin(rad) * r * 0.98f).toFloat())
-                        drawLine(
-                            color = if (i % 3 == 0) Color.White else Color.White.copy(alpha = 0.5f),
-                            start = p1,
-                            end = p2,
-                            strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
+                        for (i in 0 until 12) {
+                            val rad = Math.toRadians((i * 30.0) - 90.0)
+                            val p1 = Offset((center.x + cos(rad) * r * 0.86f).toFloat(), (center.y + sin(rad) * r * 0.86f).toFloat())
+                            val p2 = Offset((center.x + cos(rad) * r * 0.98f).toFloat(), (center.y + sin(rad) * r * 0.98f).toFloat())
+                            drawLine(
+                                color = if (i % 3 == 0) Color.White else Color.White.copy(alpha = 0.4f),
+                                start = p1,
+                                end = p2,
+                                strokeWidth = if (i % 3 == 0) 3.5.dp.toPx() else 1.5.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
                     }
-
-                    val hourRad = Math.toRadians((hourAngle - 90.0))
-                    val hourEnd = Offset((center.x + cos(hourRad) * r * 0.52f).toFloat(), (center.y + sin(hourRad) * r * 0.52f).toFloat())
-                    drawLine(Color.White, center, hourEnd, strokeWidth = 6.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(hourRad) * r * 0.44f).toFloat(), (center.y + sin(hourRad) * r * 0.44f).toFloat()), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
-
-                    val minRad = Math.toRadians((minuteAngle - 90.0))
-                    val minEnd = Offset((center.x + cos(minRad) * r * 0.78f).toFloat(), (center.y + sin(minRad) * r * 0.78f).toFloat())
-                    drawLine(Color.White, center, minEnd, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round)
-                    drawLine(Color(0xFF0F1113), center, Offset((center.x + cos(minRad) * r * 0.70f).toFloat(), (center.y + sin(minRad) * r * 0.70f).toFloat()), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
-
-                    if (!isAod && showSeconds) {
-                        val secRad = Math.toRadians((secondAngle - 90.0))
-                        val secEnd = Offset((center.x + cos(secRad) * r * 0.88f).toFloat(), (center.y + sin(secRad) * r * 0.88f).toFloat())
-                        drawLine(Color(0xFFFF80AB), center, secEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
-                        drawCircle(Color(0xFFFF80AB), radius = 3.5.dp.toPx(), center = Offset((center.x + cos(secRad) * r * 0.42f).toFloat(), (center.y + sin(secRad) * r * 0.42f).toFloat()))
-                    }
-
-                    drawCircle(Color(0xFFFF80AB), radius = 5.dp.toPx(), center = center)
-                    drawCircle(Color.White, radius = 2.5.dp.toPx(), center = center)
                 }
 
-                // التاريخ قابل للسحب الحر
                 if (dateFormat != "-") {
-                    UniversalDraggableItem(
+                    MaterialYouComplicationItem(
                         offsetDp = dateOffset,
                         onOffsetChange = onDateOffsetChange,
                         badgeShape = badgeShape,
                         opacity = badgeOpacity,
+                        badgeColor = badgeColor,
                         onDragStateChange = onDragStateChange
                     ) {
                         Text(dateFormat, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                // الودجة الأولى قابلة للسحب الحر
                 if (widget1 != null) {
-                    UniversalDraggableItem(
+                    MaterialYouComplicationItem(
                         offsetDp = widget1Offset,
                         onOffsetChange = onWidget1OffsetChange,
                         badgeShape = badgeShape,
                         opacity = badgeOpacity,
+                        badgeColor = badgeColor,
                         onDragStateChange = onDragStateChange
                     ) {
-                        RenderWidgetContent(widget1, displayStyle)
+                        RenderAnalogWidgetContent(widget1, displayStyle, badgeColor)
                     }
                 }
 
-                // الودجة الثانية قابلة للسحب الحر
                 if (widget2 != null) {
-                    UniversalDraggableItem(
+                    MaterialYouComplicationItem(
                         offsetDp = widget2Offset,
                         onOffsetChange = onWidget2OffsetChange,
                         badgeShape = badgeShape,
                         opacity = badgeOpacity,
+                        badgeColor = badgeColor,
                         onDragStateChange = onDragStateChange
                     ) {
-                        RenderWidgetContent(widget2, displayStyle)
+                        RenderAnalogWidgetContent(widget2, displayStyle, badgeColor)
                     }
                 }
-            }
-        }
 
-        @Composable
-        fun RenderWidgetContent(widget: WidgetType, displayStyle: String) {
-            val icon = when (widget) {
-                WidgetType.BATTERY -> Icons.Default.BatteryChargingFull
-                WidgetType.STEPS -> Icons.Default.DirectionsWalk
-                WidgetType.HEART_RATE -> Icons.Default.Favorite
-                WidgetType.WEATHER -> Icons.Default.WbSunny
-                WidgetType.CALENDAR -> Icons.Default.CalendarToday
-            }
+                Canvas(modifier = Modifier.fillMaxSize(0.92f)) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val r = size.minDimension / 2f
 
-            when (displayStyle) {
-                "Arc" -> {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(46.dp)) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawArc(
-                                color = Color(0xFF98D7A5),
-                                startAngle = -90f,
-                                sweepAngle = 260f,
-                                useCenter = false,
-                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                            )
+                    val mainHandColor = handColors.first
+                    val secondHandColor = handColors.second
+
+                    when (handStyle) {
+                        HandStyle.CLASSIC -> {
+                            drawHandClassic(center, r * 0.52f, hourAngle, 6.dp.toPx(), mainHandColor)
+                            drawHandClassic(center, r * 0.78f, minuteAngle, 4.5.dp.toPx(), mainHandColor)
                         }
-                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        HandStyle.SPORT -> {
+                            drawHandSport(center, r * 0.50f, hourAngle, 8.dp.toPx(), mainHandColor, secondHandColor)
+                            drawHandSport(center, r * 0.76f, minuteAngle, 6.dp.toPx(), mainHandColor, secondHandColor)
+                        }
+                        HandStyle.PIXEL_PILL -> {
+                            drawHandPixelPill(center, r * 0.52f, hourAngle, 10.dp.toPx(), mainHandColor)
+                            drawHandPixelPill(center, r * 0.80f, minuteAngle, 8.dp.toPx(), mainHandColor)
+                        }
+                        HandStyle.MINIMAL -> {
+                            val hourRad = Math.toRadians((hourAngle - 90.0))
+                            val hourEnd = Offset((center.x + cos(hourRad) * r * 0.54f).toFloat(), (center.y + sin(hourRad) * r * 0.54f).toFloat())
+                            drawLine(mainHandColor, center, hourEnd, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
+
+                            val minRad = Math.toRadians((minuteAngle - 90.0))
+                            val minEnd = Offset((center.x + cos(minRad) * r * 0.82f).toFloat(), (center.y + sin(minRad) * r * 0.82f).toFloat())
+                            drawLine(mainHandColor, center, minEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+                        }
                     }
-                }
-                "Icon +" -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF98D7A5)))
-                    }
-                }
-                "Text" -> {
-                    Text(widget.defaultText, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-                else -> { // Icon + %
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(widget.defaultText, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+                    if (!isAod) {
+                        val secRad = Math.toRadians((secondAngle - 90.0))
+                        val secEnd = Offset((center.x + cos(secRad) * r * 0.88f).toFloat(), (center.y + sin(secRad) * r * 0.88f).toFloat())
+                        val secTail = Offset((center.x - cos(secRad) * r * 0.18f).toFloat(), (center.y - sin(secRad) * r * 0.18f).toFloat())
+
+                        drawLine(secondHandColor, secTail, secEnd, strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+                        drawCircle(secondHandColor, radius = 4.dp.toPx(), center = center)
+                        drawCircle(Color.Black, radius = 1.5.dp.toPx(), center = center)
+                    } else {
+                        drawCircle(Color.DarkGray, radius = 3.dp.toPx(), center = center)
                     }
                 }
             }
         }
 
-        // مكوّن السحب باللمس الحقيقي مع تحويل الـ DP الدقيق ومنع استيلاء السكرول
+        fun DrawScope.drawHandClassic(center: Offset, length: Float, angleDeg: Float, width: Float, color: Color) {
+            val rad = Math.toRadians((angleDeg - 90.0))
+            val end = Offset((center.x + cos(rad) * length).toFloat(), (center.y + sin(rad) * length).toFloat())
+            drawLine(color, center, end, strokeWidth = width, cap = StrokeCap.Round)
+            val innerEnd = Offset((center.x + cos(rad) * length * 0.85f).toFloat(), (center.y + sin(rad) * length * 0.85f).toFloat())
+            drawLine(Color(0xFF101412), center, innerEnd, strokeWidth = width * 0.35f, cap = StrokeCap.Round)
+        }
+
+        fun DrawScope.drawHandSport(center: Offset, length: Float, angleDeg: Float, width: Float, mainColor: Color, accentColor: Color) {
+            val rad = Math.toRadians((angleDeg - 90.0))
+            val end = Offset((center.x + cos(rad) * length).toFloat(), (center.y + sin(rad) * length).toFloat())
+            drawLine(mainColor, center, end, strokeWidth = width, cap = StrokeCap.Square)
+            val tipStart = Offset((center.x + cos(rad) * length * 0.70f).toFloat(), (center.y + sin(rad) * length * 0.70f).toFloat())
+            drawLine(accentColor, tipStart, end, strokeWidth = width, cap = StrokeCap.Square)
+        }
+
+        fun DrawScope.drawHandPixelPill(center: Offset, length: Float, angleDeg: Float, width: Float, color: Color) {
+            val rad = Math.toRadians((angleDeg - 90.0))
+            val end = Offset((center.x + cos(rad) * length).toFloat(), (center.y + sin(rad) * length).toFloat())
+            drawLine(color, center, end, strokeWidth = width, cap = StrokeCap.Round)
+            drawLine(Color(0xFF1B221E), center, Offset((center.x + cos(rad) * length * 0.90f).toFloat(), (center.y + sin(rad) * length * 0.90f).toFloat()), strokeWidth = width * 0.3f, cap = StrokeCap.Round)
+        }
+
         @Composable
-        fun UniversalDraggableItem(
+        fun MaterialYouComplicationItem(
             offsetDp: Offset,
             onOffsetChange: (Offset) -> Unit,
             badgeShape: Int,
             opacity: Float,
+            badgeColor: Color,
             onDragStateChange: (Boolean) -> Unit,
             content: @Composable () -> Unit
         ) {
@@ -1284,59 +1156,166 @@ jobs:
                             onOffsetChange(Offset(nx, ny))
                         }
                     }
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = opacity * 0.35f))
-                    .border(1.dp, Color(0xFF98D7A5), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .size(62.dp),
                 contentAlignment = Alignment.Center
             ) {
-                content()
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawMaterialYouShapeGeometry(
+                        shapeIndex = badgeShape,
+                        color = badgeColor.copy(alpha = opacity * 0.55f),
+                        style = Fill
+                    )
+                    drawMaterialYouShapeGeometry(
+                        shapeIndex = badgeShape,
+                        color = badgeColor.copy(alpha = 0.9f),
+                        style = Stroke(width = 1.2.dp.toPx())
+                    )
+                }
+
+                Box(modifier = Modifier.padding(4.dp), contentAlignment = Alignment.Center) {
+                    content()
+                }
+            }
+        }
+
+        fun DrawScope.drawMaterialYouShapeGeometry(shapeIndex: Int, color: Color, style: androidx.compose.ui.graphics.drawscope.DrawStyle) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val r = size.minDimension / 2f
+
+            when (shapeIndex) {
+                0 -> { // Squircle
+                    val pad = r * 0.12f
+                    val sz = size.minDimension - (pad * 2f)
+                    val corner = r * 0.42f
+                    if (style is Fill) {
+                        drawRoundRect(color, topLeft = Offset(pad, pad), size = Size(sz, sz), cornerRadius = CornerRadius(corner, corner))
+                    } else {
+                        drawRoundRect(color, topLeft = Offset(pad, pad), size = Size(sz, sz), cornerRadius = CornerRadius(corner, corner), style = style)
+                    }
+                }
+                1 -> { // Flower
+                    val path = Path()
+                    val lobes = 12
+                    val rOuter = r * 0.92f
+                    val rInner = r * 0.74f
+                    for (i in 0 until lobes * 2) {
+                        val curR = if (i % 2 == 0) rOuter else rInner
+                        val angle = Math.toRadians((i * (360.0 / (lobes * 2))) - 90.0)
+                        val x = (center.x + cos(angle) * curR).toFloat()
+                        val y = (center.y + sin(angle) * curR).toFloat()
+                        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    path.close()
+                    drawPath(path, color, style = style)
+                }
+                2 -> { // Clover
+                    val lobeRadius = r * 0.50f
+                    val dist = r * 0.42f
+                    for (i in 0 until 4) {
+                        val rad = Math.toRadians(i * 90.0)
+                        val cx = (center.x + cos(rad) * dist).toFloat()
+                        val cy = (center.y + sin(rad) * dist).toFloat()
+                        drawCircle(color, radius = lobeRadius, center = Offset(cx, cy), style = style)
+                    }
+                    drawCircle(color, radius = r * 0.65f, center = center, style = style)
+                }
+                3 -> { // Cookie
+                    val path = Path()
+                    val lobes = 8
+                    val rOuter = r * 0.92f
+                    val rInner = r * 0.76f
+                    for (i in 0 until lobes * 2) {
+                        val curR = if (i % 2 == 0) rOuter else rInner
+                        val angle = Math.toRadians((i * (360.0 / (lobes * 2))) - 90.0)
+                        val x = (center.x + cos(angle) * curR).toFloat()
+                        val y = (center.y + sin(angle) * curR).toFloat()
+                        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    path.close()
+                    drawPath(path, color, style = style)
+                }
+                4 -> { // Hexagon
+                    val path = Path()
+                    for (i in 0 until 6) {
+                        val rad = Math.toRadians((i * 60.0) - 30.0)
+                        val x = (center.x + cos(rad) * r * 0.92f).toFloat()
+                        val y = (center.y + sin(rad) * r * 0.92f).toFloat()
+                        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    path.close()
+                    drawPath(path, color, style = style)
+                }
+                5 -> { // Dome
+                    val path = Path()
+                    val w = r * 1.55f
+                    val h = r * 1.7f
+                    val left = center.x - w / 2f
+                    val top = center.y - h / 2f
+                    path.moveTo(left, top + w / 2f)
+                    path.arcTo(
+                        rect = androidx.compose.ui.geometry.Rect(left, top, left + w, top + w),
+                        startAngleDegrees = 180f,
+                        sweepAngleDegrees = 180f,
+                        forceMoveTo = false
+                    )
+                    path.lineTo(left + w, top + h)
+                    path.lineTo(left, top + h)
+                    path.close()
+                    drawPath(path, color, style = style)
+                }
+                else -> { // Pill
+                    val w = r * 1.75f
+                    val h = r * 1.25f
+                    val left = center.x - w / 2f
+                    val top = center.y - h / 2f
+                    if (style is Fill) {
+                        drawRoundRect(color, topLeft = Offset(left, top), size = Size(w, h), cornerRadius = CornerRadius(h / 2f, h / 2f))
+                    } else {
+                        drawRoundRect(color, topLeft = Offset(left, top), size = Size(w, h), cornerRadius = CornerRadius(h / 2f, h / 2f), style = style)
+                    }
+                }
             }
         }
 
         @Composable
-        fun ShapeRenderer(shapeIndex: Int, color: Color) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val r = size.minDimension / 2f
-                when (shapeIndex) {
-                    0 -> drawRoundRect(color, topLeft = Offset(r * 0.15f, r * 0.15f), size = Size(r * 1.7f, r * 1.7f), cornerRadius = CornerRadius(r * 0.45f, r * 0.45f))
-                    1 -> {
-                        for (i in 0 until 12) {
-                            val rad = Math.toRadians(i * 30.0)
-                            drawCircle(color, radius = r * 0.38f, center = Offset((center.x + cos(rad) * r * 0.55f).toFloat(), (center.y + sin(rad) * r * 0.55f).toFloat()))
+        fun RenderAnalogWidgetContent(widget: WidgetType, displayStyle: String, accentColor: Color) {
+            val icon = when (widget) {
+                WidgetType.BATTERY -> Icons.Default.BatteryChargingFull
+                WidgetType.STEPS -> Icons.Default.DirectionsWalk
+                WidgetType.HEART_RATE -> Icons.Default.Favorite
+                WidgetType.WEATHER -> Icons.Default.WbSunny
+                WidgetType.CALENDAR -> Icons.Default.CalendarToday
+            }
+
+            when (displayStyle) {
+                "Arc" -> {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(42.dp)) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawArc(
+                                color = accentColor,
+                                startAngle = -90f,
+                                sweepAngle = 260f,
+                                useCenter = false,
+                                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+                            )
                         }
-                        drawCircle(color, radius = r * 0.65f, center = center)
+                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
                     }
-                    2 -> {
-                        for (i in 0 until 4) {
-                            val rad = Math.toRadians(i * 90.0)
-                            drawCircle(color, radius = r * 0.52f, center = Offset((center.x + cos(rad) * r * 0.45f).toFloat(), (center.y + sin(rad) * r * 0.45f).toFloat()))
-                        }
+                }
+                "Icon +" -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(accentColor))
                     }
-                    3 -> {
-                        for (i in 0 until 8) {
-                            val rad = Math.toRadians(i * 45.0)
-                            drawCircle(color, radius = r * 0.42f, center = Offset((center.x + cos(rad) * r * 0.50f).toFloat(), (center.y + sin(rad) * r * 0.50f).toFloat()))
-                        }
-                    }
-                    4 -> {
-                        val path = Path()
-                        for (i in 0 until 6) {
-                            val rad = Math.toRadians(i * 60.0 - 30.0)
-                            val x = (center.x + cos(rad) * r * 0.9f).toFloat()
-                            val y = (center.y + sin(rad) * r * 0.9f).toFloat()
-                            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                        }
-                        path.close()
-                        drawPath(path, color)
-                    }
-                    5 -> {
-                        drawArc(color, 180f, 180f, true, Offset(r * 0.2f, r * 0.1f), Size(r * 1.6f, r * 1.4f))
-                        drawRect(color, topLeft = Offset(r * 0.2f, r * 0.8f), size = Size(r * 1.6f, r * 0.9f))
-                    }
-                    else -> {
-                        drawCircle(color, radius = r * 0.88f, center = center)
+                }
+                "Text" -> {
+                    Text(widget.defaultText, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                else -> { // Icon + %
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Text(widget.defaultText, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1349,5 +1328,5 @@ jobs:
     - name: Upload Phone APK Only
       uses: actions/upload-artifact@v4
       with:
-        name: PhoneApp-V18
+        name: PhoneApp-V19-AnalogPro
         path: app/build/outputs/apk/debug/*.apk
